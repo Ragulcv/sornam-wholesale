@@ -1,0 +1,97 @@
+@import "tailwindcss";
+
+/* ---- Sornam Wholesale design tokens ---------------------------------- */
+@theme {
+  --color-gold: #c9a227;
+  --color-gold-deep: #8a6d1f;
+  --color-gold-bright: #e7c25c;
+  --color-gold-hi: #fbedb4;
+
+  --color-onyx: #0e0e10;
+  --color-charcoal: #1a1a1e;
+  --color-ivory: #f5f1e8;
+  --color-cream: #fbf8f2;
+  --color-pearl: #ffffff;
+
+  --color-ink: #1a1814;
+  --color-mid: #5b564c;
+  --color-mute: #8a8478;
+  --color-line: #e7dfce;
+  --color-line2: #efe9db;
+
+  --color-pos: #2f7d5b;
+  --color-neg: #a23a2e;
+  --color-info: #2f5b9e;
+
+  --font-serif: var(--font-cormorant), Georgia, serif;
+  --font-sans: var(--font-inter), system-ui, sans-serif;
+}
+
+:root {
+  color-scheme: light;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  background: var(--color-ivory);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+/* Tabular numerals for all money / weight figures. */
+.num {
+  font-variant-numeric: tabular-nums;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+.serif {
+  font-family: var(--font-serif);
+}
+
+::-webkit-scrollbar {
+  width: 9px;
+  height: 9px;
+}
+::-webkit-scrollbar-thumb {
+  background: #d9d0bd;
+  border-radius: 8px;
+}
+
+/* Gold gradient used for the wordmark and primary actions. */
+.gold-grad {
+  background: linear-gradient(135deg, #8a6d1f, #c9a227 45%, #e7c25c 75%, #fbedb4);
+}
+.gold-text {
+  background: linear-gradient(135deg, #8a6d1f, #c9a227 45%, #e7c25c 75%, #fbedb4);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* ---- Print: the slip is the only thing that prints -------------------- */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .print-slip,
+  .print-slip * {
+    visibility: visible;
+  }
+  .print-slip {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+  }
+  .no-print {
+    display: none !important;
+  }
+}
