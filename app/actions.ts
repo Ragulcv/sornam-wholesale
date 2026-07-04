@@ -46,7 +46,9 @@ export async function setPinAction(
   if (pin !== str(fd, "confirm"))
     return { error: "PINs do not match." };
   await setPin(pin);
-  redirect("/");
+  // Return ok and let the client hard-navigate — setting the session cookie
+  // and redirect()ing in the same action can drop the Set-Cookie header.
+  return { ok: true };
 }
 
 export async function loginAction(
@@ -55,7 +57,7 @@ export async function loginAction(
 ): Promise<ActionState> {
   const pin = str(fd, "pin");
   const result = await verifyPinAndLogin(pin);
-  if (result.ok) redirect("/");
+  if (result.ok) return { ok: true };
   if (result.reason === "locked")
     return {
       error: `Too many attempts. Try again in ${result.retryInSeconds}s.`,

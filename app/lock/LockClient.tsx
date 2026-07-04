@@ -21,6 +21,11 @@ export default function LockClient({ mode }: { mode: "login" | "setup" }) {
   const setActive = mode === "setup" && stage === "confirm" ? setConfirm : setPin;
 
   useEffect(() => {
+    if (state?.ok) {
+      // Hard navigation so the freshly-set session cookie is sent to the proxy.
+      window.location.href = "/";
+      return;
+    }
     if (state?.error) {
       // reset entry on error
       setPin("");
