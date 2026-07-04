@@ -367,6 +367,25 @@ export async function createBooking(data: {
   return row.id;
 }
 
+/** Delete a booking (its collections cascade via FK). */
+export async function deleteBooking(id: string): Promise<void> {
+  await db.delete(bookings).where(eq(bookings.id, id));
+}
+
+/** Delete a customer — blocked if they have bookings (delete those first). */
+export async function deleteCustomer(
+  id: string,
+): Promise<{ ok: boolean; reason?: "has_bookings" }> {
+  const has = await db
+    .select({ id: bookings.id })
+    .from(bookings)
+    .where(eq(bookings.customerId, id))
+    .limit(1);
+  if (has.length) return { ok: false, reason: "has_bookings" };
+  await db.delete(customers).where(eq(customers.id, id));
+  return { ok: true };
+}
+
 export async function recordCollection(data: {
   bookingId: string;
   weightCollectedG: number;

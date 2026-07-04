@@ -13,6 +13,8 @@ import {
 import {
   createBooking,
   createCustomer,
+  deleteBooking,
+  deleteCustomer,
   findOrCreateCustomer,
   recordCollection,
   updateSettings,
@@ -89,6 +91,7 @@ export async function createBookingAction(
   const name = str(fd, "customerName");
   if (!name) return { error: "Customer name is required." };
   const phone = str(fd, "customerPhone");
+  const pickedCustomerId = str(fd, "customerId");
 
   const metal = str(fd, "metal") === "silver" ? "silver" : "gold";
   const purity = str(fd, "purity") || (metal === "gold" ? "995" : "999");
@@ -102,7 +105,8 @@ export async function createBookingAction(
     return { error: "Enter the locked rate." };
   const advance = numField(fd, "advance");
 
-  const customerId = await findOrCreateCustomer(name, phone);
+  const customerId =
+    pickedCustomerId || (await findOrCreateCustomer(name, phone));
   const bookingId = await createBooking({
     customerId,
     metal,
@@ -181,6 +185,26 @@ export async function createCustomerAction(
   });
   revalidatePath("/customers");
   return { ok: true };
+}
+
+// ---- Deletes ------------------------------------------------------------
+
+export async function deleteBookingAction(id: string): Promise<void> {
+  await requireSession();
+  await deleteBooking(id);
+  revalidatePath("/");
+  revalidatePath("/bookings");
+  revalidatePath("/transactions");
+  revalidatePath("/customers");
+}
+
+export async function deleteCustomerAction(
+  id: string,
+): Promise<{ ok: boolean; reason?: "has_bookings" }> {
+  await requireSession();
+  const res = await deleteCustomer(id);
+  if (res.ok) revalidatePath("/customers");
+  return res;
 }
 
 // ---- Settings -----------------------------------------------------------

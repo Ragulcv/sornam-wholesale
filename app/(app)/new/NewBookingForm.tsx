@@ -18,15 +18,32 @@ export default function NewBookingForm({
   currentGold,
   currentSilver,
   priceUpdatedAt,
+  customers,
 }: {
   currentGold: number | null;
   currentSilver: number | null;
   priceUpdatedAt: string | null;
+  customers: { id: string; name: string; phone: string | null }[];
 }) {
   const [state, dispatch, pending] = useActionState<ActionState, FormData>(
     createBookingAction,
     {},
   );
+
+  const [custName, setCustName] = useState("");
+  const [custPhone, setCustPhone] = useState("");
+  const [custId, setCustId] = useState("");
+  const [showList, setShowList] = useState(false);
+
+  const q = custName.trim().toLowerCase();
+  const matches = customers
+    .filter(
+      (c) =>
+        !q ||
+        c.name.toLowerCase().includes(q) ||
+        (c.phone || "").includes(q),
+    )
+    .slice(0, 8);
 
   const [metal, setMetal] = useState<"gold" | "silver">("gold");
   const [purity, setPurity] = useState("995");
@@ -126,6 +143,7 @@ export default function NewBookingForm({
 
   return (
     <form action={dispatch} className="mx-auto max-w-lg">
+      <input type="hidden" name="customerId" value={custId} />
       <input type="hidden" name="metal" value={metal} />
       <input type="hidden" name="purity" value={effectivePurity} />
       <input type="hidden" name="rateMode" value={rateMode} />
@@ -133,17 +151,60 @@ export default function NewBookingForm({
 
       <Card className="flex flex-col gap-5 p-5">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <label className="block">
+          <div className="relative block">
             <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-mute">
-              Customer name
+              Customer — pick or type new
             </span>
-            <input name="customerName" className={fieldCls} placeholder="e.g. Ramesh Bullion" autoFocus />
-          </label>
+            <input
+              name="customerName"
+              value={custName}
+              onChange={(e) => {
+                setCustName(e.target.value);
+                setCustId("");
+                setShowList(true);
+              }}
+              onFocus={() => setShowList(true)}
+              onBlur={() => setTimeout(() => setShowList(false), 150)}
+              autoComplete="off"
+              className={fieldCls}
+              placeholder="Search or add a customer"
+              autoFocus
+            />
+            {showList && matches.length > 0 && (
+              <ul className="absolute z-20 mt-1 max-h-56 w-full overflow-auto rounded-xl border border-line bg-pearl py-1 shadow-lg">
+                {matches.map((c) => (
+                  <li key={c.id}>
+                    <button
+                      type="button"
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        setCustName(c.name);
+                        setCustPhone(c.phone || "");
+                        setCustId(c.id);
+                        setShowList(false);
+                      }}
+                      className="flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-cream"
+                    >
+                      <span className="font-medium text-ink">{c.name}</span>
+                      <span className="text-xs text-mute">{c.phone || ""}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
           <label className="block">
             <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-mute">
               Phone (for WhatsApp)
             </span>
-            <input name="customerPhone" inputMode="tel" className={fieldCls} placeholder="10-digit mobile" />
+            <input
+              name="customerPhone"
+              inputMode="tel"
+              value={custPhone}
+              onChange={(e) => setCustPhone(e.target.value)}
+              className={fieldCls}
+              placeholder="10-digit mobile"
+            />
           </label>
         </div>
 

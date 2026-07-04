@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import IdleTimer from "./IdleTimer";
-import PanicOverlay from "./PanicOverlay";
 
 const NAV: { href: string; label: string; icon: React.ReactNode }[] = [
   { href: "/", label: "Today", icon: <IconHome /> },
@@ -77,9 +76,6 @@ export default function AppShell({
                   {n.label}
                 </Link>
               ))}
-            </div>
-            <div className="ml-auto flex items-center gap-2">
-              <PanicOverlay />
             </div>
           </div>
         </header>
