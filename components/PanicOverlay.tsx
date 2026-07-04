@@ -65,7 +65,7 @@ export default function PanicOverlay() {
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-onyx px-6">
           <div className="w-full max-w-[240px] text-center">
             <div className="mb-2 font-serif text-2xl font-bold text-ivory">
-              Sornam <span className="gold-text">Wholesale</span>
+              Tracker
             </div>
             <p className="mb-6 text-xs uppercase tracking-[0.25em] text-[#6a6458]">
               Screen locked

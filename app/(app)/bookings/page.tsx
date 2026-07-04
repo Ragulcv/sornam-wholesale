@@ -8,6 +8,7 @@ import {
   PageHeader,
   StatusBadge,
 } from "@/components/ui";
+import BookingRowActions from "@/components/BookingRowActions";
 
 export const dynamic = "force-dynamic";
 
@@ -73,12 +74,11 @@ export default async function BookingsPage({
       ) : (
         <Card className="divide-y divide-line2">
           {rows.map((b) => (
-            <Link
+            <div
               key={b.id}
-              href={`/bookings/${b.id}`}
-              className="flex items-center gap-4 px-4 py-3.5 transition hover:bg-cream"
+              className="flex items-center gap-3 px-4 py-3.5 transition hover:bg-cream"
             >
-              <div className="min-w-0 flex-1">
+              <Link href={`/bookings/${b.id}`} className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
                   <span className="truncate font-medium text-ink">
                     {b.customerName}
@@ -96,16 +96,26 @@ export default async function BookingsPage({
                     <span>· market rate</span>
                   )}
                 </div>
-              </div>
-              <div className="text-right">
+              </Link>
+              <Link href={`/bookings/${b.id}`} className="text-right">
                 <div className="num text-sm text-ink">
                   {fmtWeight(b.weightPendingG)}
                 </div>
                 <div className="text-[11px] text-mute">
                   pending / {fmtWeight(b.weightBookedG)}
                 </div>
-              </div>
-            </Link>
+              </Link>
+              <BookingRowActions
+                booking={{
+                  id: b.id,
+                  rateMode: b.rateMode,
+                  lockedRate: b.lockedRate,
+                  rateUnit: b.rateUnit,
+                  weightPendingG: b.weightPendingG,
+                  status: b.status,
+                }}
+              />
+            </div>
           ))}
         </Card>
       )}

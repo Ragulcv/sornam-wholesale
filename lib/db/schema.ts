@@ -75,8 +75,11 @@ export const settings = pgTable("settings", {
   failedAttempts: integer("failed_attempts").notNull().default(0),
   lockedUntil: timestamp("locked_until", { withTimezone: true }),
   gstin: text("gstin"),
+  // Total GST / tax percentage applied on GST slips (split evenly into CGST/SGST).
+  taxPercent: numeric("tax_percent", { precision: 5, scale: 2 }).notNull().default("3"),
   defaultGoldRate: numeric("default_gold_rate", { precision: 12, scale: 2 }),
   defaultSilverRate: numeric("default_silver_rate", { precision: 12, scale: 2 }),
+  priceUpdatedAt: timestamp("price_updated_at", { withTimezone: true }),
 });
 
 // ---- Inferred types -----------------------------------------------------

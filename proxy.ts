@@ -33,6 +33,7 @@ export async function proxy(req: NextRequest) {
 }
 
 export const config = {
-  // Run on everything except Next internals, static assets, and the lock page.
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|lock).*)"],
+  // Run on everything except Next internals, static assets, the lock page, and
+  // the cron endpoint (which is protected by its own secret, not a session).
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|lock|api/cron).*)"],
 };

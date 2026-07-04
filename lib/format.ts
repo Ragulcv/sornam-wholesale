@@ -82,8 +82,12 @@ export function fmtDateTime(d: Date | string): string {
   });
 }
 
-export const PAYMENT_MODES = ["cash", "bank", "upi"] as const;
-export type PaymentMode = (typeof PAYMENT_MODES)[number];
+// "upi" is retained only so legacy rows still type-check / display; the app
+// now works in Cash / Bank only.
+export type PaymentMode = "cash" | "bank" | "upi";
+
+// Active payment modes offered in the UI.
+export const PAYMENT_MODES: readonly PaymentMode[] = ["cash", "bank"];
 
 export const paymentModeLabel: Record<PaymentMode, string> = {
   cash: "Cash",

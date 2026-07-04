@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useActionState, useState } from "react";
 import { createBookingAction, type ActionState } from "@/app/actions";
 import { Card } from "@/components/ui";
-import { unitLabel, type RateUnit } from "@/lib/format";
+import { fmtRate, unitLabel, type RateUnit } from "@/lib/format";
 
 const PURITIES: Record<"gold" | "silver", string[]> = {
   gold: ["995", "999", "916 (22K)", "750 (18K)"],
@@ -14,7 +14,15 @@ const PURITIES: Record<"gold" | "silver", string[]> = {
 const fieldCls =
   "w-full rounded-xl border border-line bg-cream px-4 py-3 text-[15px] outline-none focus:border-gold focus:ring-2 focus:ring-[rgba(201,162,39,.25)]";
 
-export default function NewBookingForm() {
+export default function NewBookingForm({
+  currentGold,
+  currentSilver,
+  priceUpdatedAt,
+}: {
+  currentGold: number | null;
+  currentSilver: number | null;
+  priceUpdatedAt: string | null;
+}) {
   const [state, dispatch, pending] = useActionState<ActionState, FormData>(
     createBookingAction,
     {},
@@ -22,12 +30,18 @@ export default function NewBookingForm() {
 
   const [metal, setMetal] = useState<"gold" | "silver">("gold");
   const [purity, setPurity] = useState("995");
+  const [customPurity, setCustomPurity] = useState("");
   const [rateMode, setRateMode] = useState<"locked" | "float">("locked");
   const [rateUnit, setRateUnit] = useState<RateUnit>("per_10g");
+  const [rate, setRate] = useState("");
+
+  const currentPrice = metal === "gold" ? currentGold : currentSilver;
+  const effectivePurity = customPurity.trim() || purity;
 
   function switchMetal(m: "gold" | "silver") {
     setMetal(m);
     setPurity(m === "gold" ? "995" : "999");
+    setCustomPurity("");
     setRateUnit(m === "gold" ? "per_10g" : "per_kg");
   }
 
@@ -39,12 +53,8 @@ export default function NewBookingForm() {
             <path d="m5 13 4 4L19 7" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
         </div>
-        <h2 className="font-serif text-2xl font-semibold text-ink">
-          Booking saved
-        </h2>
-        <p className="mt-1 text-sm text-mute">
-          Send the confirmation and you&apos;re done.
-        </p>
+        <h2 className="font-serif text-2xl font-semibold text-ink">Booking saved</h2>
+        <p className="mt-1 text-sm text-mute">Send the confirmation and you&apos;re done.</p>
         <div className="mt-5 flex flex-col gap-2">
           {state.whatsappUrl ? (
             <a
@@ -58,17 +68,23 @@ export default function NewBookingForm() {
               </svg>
               Send WhatsApp confirmation
             </a>
-          ) : (
-            <p className="text-xs text-mute">
-              No phone on file — add one to send WhatsApp next time.
-            </p>
-          )}
-          <Link
-            href={`/bookings/${state.bookingId}`}
-            className="rounded-xl border border-line bg-pearl px-4 py-3 font-semibold text-ink hover:bg-cream"
-          >
-            View booking
-          </Link>
+          ) : null}
+          <div className="grid grid-cols-2 gap-2">
+            <a
+              href={`/bookings/${state.bookingId}/print`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center justify-center gap-2 rounded-xl border border-line bg-pearl px-4 py-3 font-semibold text-ink hover:bg-cream"
+            >
+              Print
+            </a>
+            <Link
+              href={`/bookings/${state.bookingId}`}
+              className="flex items-center justify-center rounded-xl border border-line bg-pearl px-4 py-3 font-semibold text-ink hover:bg-cream"
+            >
+              View
+            </Link>
+          </div>
           <button
             onClick={() => window.location.reload()}
             className="gold-grad rounded-xl px-4 py-3 font-bold text-onyx"
@@ -83,12 +99,11 @@ export default function NewBookingForm() {
   return (
     <form action={dispatch} className="mx-auto max-w-lg">
       <input type="hidden" name="metal" value={metal} />
-      <input type="hidden" name="purity" value={purity} />
+      <input type="hidden" name="purity" value={effectivePurity} />
       <input type="hidden" name="rateMode" value={rateMode} />
       <input type="hidden" name="rateUnit" value={rateUnit} />
 
       <Card className="flex flex-col gap-5 p-5">
-        {/* Customer */}
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <label className="block">
             <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-mute">
@@ -104,7 +119,6 @@ export default function NewBookingForm() {
           </label>
         </div>
 
-        {/* Metal */}
         <div>
           <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-mute">
             Metal
@@ -127,7 +141,6 @@ export default function NewBookingForm() {
           </div>
         </div>
 
-        {/* Purity */}
         <div>
           <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-mute">
             Purity
@@ -135,13 +148,17 @@ export default function NewBookingForm() {
           <div className="flex flex-wrap gap-2">
             {PURITIES[metal].map((p) => {
               const val = p.split(" ")[0];
+              const active = !customPurity.trim() && purity === val;
               return (
                 <button
                   key={p}
                   type="button"
-                  onClick={() => setPurity(val)}
+                  onClick={() => {
+                    setPurity(val);
+                    setCustomPurity("");
+                  }}
                   className={`rounded-lg border px-3 py-2 text-sm font-medium transition ${
-                    purity === val
+                    active
                       ? "border-gold bg-[rgba(201,162,39,.1)] text-gold-deep"
                       : "border-line bg-cream text-mid"
                   }`}
@@ -151,22 +168,21 @@ export default function NewBookingForm() {
               );
             })}
           </div>
+          <input
+            value={customPurity}
+            onChange={(e) => setCustomPurity(e.target.value)}
+            className={`${fieldCls} mt-2`}
+            placeholder="…or type custom — e.g. 91.6% or 916"
+          />
         </div>
 
-        {/* Weight */}
         <label className="block">
           <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-mute">
             Weight booked (grams)
           </span>
-          <input
-            name="weight"
-            inputMode="decimal"
-            className={`${fieldCls} num text-lg`}
-            placeholder="0.000"
-          />
+          <input name="weight" inputMode="decimal" className={`${fieldCls} num text-lg`} placeholder="0.000" />
         </label>
 
-        {/* Rate mode */}
         <div>
           <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-mute">
             Rate
@@ -193,27 +209,44 @@ export default function NewBookingForm() {
             ))}
           </div>
           {rateMode === "locked" && (
-            <div className="flex gap-2">
-              <input
-                name="lockedRate"
-                inputMode="decimal"
-                className={`${fieldCls} num flex-1`}
-                placeholder={`Rate ${unitLabel(rateUnit)}`}
-              />
-              <select
-                value={rateUnit}
-                onChange={(e) => setRateUnit(e.target.value as RateUnit)}
-                className="rounded-xl border border-line bg-cream px-3 text-sm"
-              >
-                <option value="per_10g">/10g</option>
-                <option value="per_kg">/kg</option>
-                <option value="per_g">/g</option>
-              </select>
-            </div>
+            <>
+              <div className="flex gap-2">
+                <input
+                  name="lockedRate"
+                  inputMode="decimal"
+                  value={rate}
+                  onChange={(e) => setRate(e.target.value)}
+                  className={`${fieldCls} num flex-1`}
+                  placeholder={`Rate ${unitLabel(rateUnit)}`}
+                />
+                <select
+                  value={rateUnit}
+                  onChange={(e) => setRateUnit(e.target.value as RateUnit)}
+                  className="rounded-xl border border-line bg-cream px-3 text-sm"
+                >
+                  <option value="per_10g">/10g</option>
+                  <option value="per_kg">/kg</option>
+                  <option value="per_g">/g</option>
+                </select>
+              </div>
+              {currentPrice != null && (
+                <button
+                  type="button"
+                  onClick={() => setRate(String(currentPrice))}
+                  className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-gold/40 bg-[rgba(201,162,39,.08)] px-3 py-1.5 text-xs font-semibold text-gold-deep"
+                >
+                  Use current price · {fmtRate(currentPrice)}
+                  {priceUpdatedAt && (
+                    <span className="font-normal text-mute">
+                      (updated {new Date(priceUpdatedAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })})
+                    </span>
+                  )}
+                </button>
+              )}
+            </>
           )}
         </div>
 
-        {/* Advance & notes */}
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <label className="block">
             <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-mute">
@@ -230,9 +263,7 @@ export default function NewBookingForm() {
         </div>
 
         {state?.error && (
-          <p className="rounded-lg bg-[#fdecea] px-3 py-2 text-sm text-neg">
-            {state.error}
-          </p>
+          <p className="rounded-lg bg-[#fdecea] px-3 py-2 text-sm text-neg">{state.error}</p>
         )}
 
         <button

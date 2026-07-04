@@ -22,8 +22,10 @@ async function main() {
     pinHash,
     autoLogoffMinutes: 7,
     gstin: "33ABCDE1234F1Z5",
+    taxPercent: "3",
     defaultGoldRate: "72500",
     defaultSilverRate: "92000",
+    priceUpdatedAt: new Date(),
   });
 
   const people = [
@@ -122,7 +124,7 @@ async function main() {
     bookingId: b4.id,
     weightCollectedG: "200.000",
     rateApplied: "73100",
-    paymentMode: "upi",
+    paymentMode: "bank",
     amount: String(calcAmount(200, 73100, "per_10g")),
     slipType: "plain",
   });

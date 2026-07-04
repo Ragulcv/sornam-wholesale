@@ -9,7 +9,7 @@ const NAV: { href: string; label: string; icon: React.ReactNode }[] = [
   { href: "/", label: "Today", icon: <IconHome /> },
   { href: "/new", label: "New booking", icon: <IconPlus /> },
   { href: "/bookings", label: "Bookings", icon: <IconBook /> },
-  { href: "/ledger", label: "Ledger", icon: <IconLedger /> },
+  { href: "/transactions", label: "Transactions", icon: <IconLedger /> },
   { href: "/customers", label: "Customers", icon: <IconUsers /> },
   { href: "/settings", label: "Settings", icon: <IconGear /> },
 ];
@@ -33,10 +33,7 @@ export default function AppShell({
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-60 flex-col bg-onyx px-4 py-6 text-[#cfc9bd] md:flex">
         <div className="mb-6 border-b border-[#28261f] px-2 pb-5">
           <div className="font-serif text-[22px] font-bold leading-none tracking-wide text-ivory">
-            Sornam
-          </div>
-          <div className="gold-text font-serif text-[15px] font-semibold tracking-wide">
-            Wholesale
+            Tracker
           </div>
         </div>
         <nav className="flex flex-1 flex-col gap-1">
@@ -56,7 +53,7 @@ export default function AppShell({
           ))}
         </nav>
         <div className="mt-4 px-2 text-center text-[10px] leading-relaxed text-[#5a554b]">
-          Sornam Wholesale · v1
+          v1
         </div>
       </aside>
 

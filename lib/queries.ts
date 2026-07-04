@@ -7,7 +7,12 @@ import {
   customers,
   settings as settingsTable,
 } from "./db/schema";
-import { calcAmount, type PaymentMode, type RateUnit } from "./format";
+import {
+  calcAmount,
+  PAYMENT_MODES,
+  type PaymentMode,
+  type RateUnit,
+} from "./format";
 
 // ---- View models --------------------------------------------------------
 
@@ -70,14 +75,15 @@ export async function listBookings(filter?: {
   if (filter?.customerId)
     conditions.push(eq(bookings.customerId, filter.customerId));
 
-  const rows = await db
-    .select({ b: bookings, cName: customers.name, cPhone: customers.phone })
-    .from(bookings)
-    .innerJoin(customers, eq(bookings.customerId, customers.id))
-    .where(conditions.length ? and(...conditions) : undefined)
-    .orderBy(desc(bookings.createdAt));
-
-  const collected = await collectedByBooking();
+  const [rows, collected] = await Promise.all([
+    db
+      .select({ b: bookings, cName: customers.name, cPhone: customers.phone })
+      .from(bookings)
+      .innerJoin(customers, eq(bookings.customerId, customers.id))
+      .where(conditions.length ? and(...conditions) : undefined)
+      .orderBy(desc(bookings.createdAt)),
+    collectedByBooking(),
+  ]);
 
   return rows.map(({ b, cName, cPhone }) => {
     const booked = num(b.weightBookedG);
@@ -107,15 +113,16 @@ export async function getBooking(id: string): Promise<{
   booking: BookingRow;
   collections: CollectionRow[];
 } | null> {
-  const rows = await db
-    .select({ b: bookings, cName: customers.name, cPhone: customers.phone })
-    .from(bookings)
-    .innerJoin(customers, eq(bookings.customerId, customers.id))
-    .where(eq(bookings.id, id));
+  const [rows, cols] = await Promise.all([
+    db
+      .select({ b: bookings, cName: customers.name, cPhone: customers.phone })
+      .from(bookings)
+      .innerJoin(customers, eq(bookings.customerId, customers.id))
+      .where(eq(bookings.id, id)),
+    listCollections({ bookingId: id }),
+  ]);
   const row = rows[0];
   if (!row) return null;
-
-  const cols = await listCollections({ bookingId: id });
   const got = cols.reduce((a, c) => a + c.weightCollectedG, 0);
   const booked = num(row.b.weightBookedG);
 
@@ -264,7 +271,10 @@ export async function dashboard(): Promise<{
   const start = new Date();
   start.setHours(0, 0, 0, 0);
 
-  const todayCols = await listCollections({ since: start });
+  const [todayCols, allBookings] = await Promise.all([
+    listCollections({ since: start }),
+    listBookings(),
+  ]);
   const byMode = new Map<PaymentMode, { amount: number; count: number }>();
   for (const c of todayCols) {
     const cur = byMode.get(c.paymentMode) ?? { amount: 0, count: 0 };
@@ -272,13 +282,12 @@ export async function dashboard(): Promise<{
     cur.count += 1;
     byMode.set(c.paymentMode, cur);
   }
-  const today = (["cash", "bank", "upi"] as PaymentMode[]).map((mode) => ({
+  const today = PAYMENT_MODES.map((mode) => ({
     mode,
     amount: byMode.get(mode)?.amount ?? 0,
     count: byMode.get(mode)?.count ?? 0,
   }));
 
-  const allBookings = await listBookings();
   return {
     today,
     todayTotal: today.reduce((a, t) => a + t.amount, 0),
@@ -405,6 +414,7 @@ export async function recordCollection(data: {
 export async function updateSettings(data: {
   autoLogoffMinutes?: number;
   gstin?: string | null;
+  taxPercent?: number;
   defaultGoldRate?: number | null;
   defaultSilverRate?: number | null;
 }): Promise<void> {
@@ -415,6 +425,7 @@ export async function updateSettings(data: {
         ? { autoLogoffMinutes: data.autoLogoffMinutes }
         : {}),
       ...(data.gstin !== undefined ? { gstin: data.gstin?.trim() || null } : {}),
+      ...(data.taxPercent != null ? { taxPercent: String(data.taxPercent) } : {}),
       ...(data.defaultGoldRate !== undefined
         ? {
             defaultGoldRate:
@@ -429,6 +440,24 @@ export async function updateSettings(data: {
                 : String(data.defaultSilverRate),
           }
         : {}),
+    })
+    .where(eq(settingsTable.id, 1));
+}
+
+/** Update the live gold/silver rates (used by the price cron). */
+export async function updatePrices(data: {
+  goldRate?: number | null;
+  silverRate?: number | null;
+  at?: Date;
+}): Promise<void> {
+  await db
+    .update(settingsTable)
+    .set({
+      ...(data.goldRate != null ? { defaultGoldRate: String(data.goldRate) } : {}),
+      ...(data.silverRate != null
+        ? { defaultSilverRate: String(data.silverRate) }
+        : {}),
+      priceUpdatedAt: data.at ?? new Date(),
     })
     .where(eq(settingsTable.id, 1));
 }

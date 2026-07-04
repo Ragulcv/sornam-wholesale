@@ -15,6 +15,7 @@ export default async function SettingsPage() {
       <SettingsForm
         autoLogoffMinutes={s.autoLogoffMinutes}
         gstin={s.gstin ?? ""}
+        taxPercent={s.taxPercent ?? "3"}
         defaultGoldRate={s.defaultGoldRate ?? ""}
         defaultSilverRate={s.defaultSilverRate ?? ""}
       />

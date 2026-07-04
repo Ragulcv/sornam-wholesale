@@ -20,7 +20,7 @@ import {
 
 export const dynamic = "force-dynamic";
 
-export default async function LedgerPage({
+export default async function TransactionsPage({
   searchParams,
 }: {
   searchParams: Promise<{ mode?: string }>;
@@ -42,16 +42,31 @@ export default async function LedgerPage({
       .reduce((a, c) => a + c.amount, 0),
   }));
   const grand = all.reduce((a, c) => a + c.amount, 0);
+  const bankCount = all.filter((c) => c.paymentMode === "bank").length;
 
   return (
     <>
       <PageHeader
-        title="Ledger"
-        subtitle="Every collection, in one place — filter by how it was paid."
+        title="Transactions"
+        subtitle="Every collection, in one place."
+        action={
+          bankCount > 0 ? (
+            <a
+              href="/api/export/bank"
+              className="flex items-center gap-2 rounded-xl border border-line bg-pearl px-4 py-2.5 text-sm font-semibold text-ink hover:bg-cream"
+            >
+              <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8">
+                <path d="M12 3v12m0 0 4-4m-4 4-4-4" strokeLinecap="round" strokeLinejoin="round" />
+                <path d="M4 17v2a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-2" strokeLinecap="round" />
+              </svg>
+              Download bank (CSV)
+            </a>
+          ) : undefined
+        }
       />
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <StatTile label="All modes" value={fmtMoney(grand)} accent />
+      <div className="grid grid-cols-3 gap-3">
+        <StatTile label="All" value={fmtMoney(grand)} accent />
         {totals.map((t) => (
           <StatTile
             key={t.mode}
@@ -63,7 +78,7 @@ export default async function LedgerPage({
 
       <div className="mb-4 mt-5 flex gap-1.5">
         <Link
-          href="/ledger"
+          href="/transactions"
           className={`rounded-lg px-3 py-1.5 text-sm font-medium transition ${
             !activeMode ? "bg-onyx text-gold-hi" : "bg-cream text-mid hover:bg-line2"
           }`}
@@ -73,7 +88,7 @@ export default async function LedgerPage({
         {PAYMENT_MODES.map((m) => (
           <Link
             key={m}
-            href={`/ledger?mode=${m}`}
+            href={`/transactions?mode=${m}`}
             className={`rounded-lg px-3 py-1.5 text-sm font-medium transition ${
               activeMode === m
                 ? "bg-onyx text-gold-hi"
@@ -88,7 +103,7 @@ export default async function LedgerPage({
       {rows.length === 0 ? (
         <EmptyState
           title="No transactions yet"
-          hint="Collections you record will show up here with running totals per payment mode."
+          hint="Collections you record show up here with running totals per payment mode."
         />
       ) : (
         <Card className="divide-y divide-line2">

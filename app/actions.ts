@@ -157,7 +157,8 @@ export async function recordCollectionAction(
   });
 
   revalidatePath("/");
-  revalidatePath("/ledger");
+  revalidatePath("/transactions");
+  revalidatePath("/bookings");
   revalidatePath(`/bookings/${bookingId}`);
 
   return { ok: true, collectionId: id };
@@ -190,8 +191,10 @@ export async function updateSettingsAction(
 ): Promise<ActionState> {
   await requireSession();
   const minutes = Math.min(60, Math.max(1, numField(fd, "autoLogoffMinutes") || 7));
+  const tax = Math.min(100, Math.max(0, numField(fd, "taxPercent")));
   await updateSettings({
     autoLogoffMinutes: minutes,
+    taxPercent: tax,
     gstin: str(fd, "gstin") || null,
     defaultGoldRate: str(fd, "defaultGoldRate")
       ? numField(fd, "defaultGoldRate")

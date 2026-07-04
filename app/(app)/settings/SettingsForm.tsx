@@ -17,11 +17,13 @@ const labelCls =
 export default function SettingsForm({
   autoLogoffMinutes,
   gstin,
+  taxPercent,
   defaultGoldRate,
   defaultSilverRate,
 }: {
   autoLogoffMinutes: number;
   gstin: string;
+  taxPercent: string;
   defaultGoldRate: string;
   defaultSilverRate: string;
 }) {
@@ -47,9 +49,22 @@ export default function SettingsForm({
             </p>
           </div>
 
-          <div>
-            <span className={labelCls}>Shop GSTIN (for GST slips)</span>
-            <input name="gstin" defaultValue={gstin} className={fieldCls} placeholder="e.g. 33ABCDE1234F1Z5" />
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <span className={labelCls}>Shop GSTIN</span>
+              <input name="gstin" defaultValue={gstin} className={fieldCls} placeholder="33ABCDE1234F1Z5" />
+            </div>
+            <div>
+              <span className={labelCls}>GST / tax rate (%)</span>
+              <input
+                name="taxPercent"
+                inputMode="decimal"
+                defaultValue={taxPercent}
+                className={`${fieldCls} num`}
+                placeholder="3"
+              />
+              <p className="mt-1 text-xs text-mute">Split evenly into CGST + SGST on GST slips.</p>
+            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3">

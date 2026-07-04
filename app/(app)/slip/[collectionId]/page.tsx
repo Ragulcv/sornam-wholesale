@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getCollection, getBooking } from "@/lib/queries";
+import { getSettings } from "@/lib/auth";
 import {
   billNo,
   fmtDate,
@@ -45,13 +46,18 @@ export default async function SlipPage({
   const { collectionId } = await params;
   const c = await getCollection(collectionId);
   if (!c) notFound();
-  const bookingData = await getBooking(c.bookingId);
+  const [bookingData, settings] = await Promise.all([
+    getBooking(c.bookingId),
+    getSettings(),
+  ]);
   const pending = bookingData?.booking.weightPendingG ?? 0;
 
   const isGst = c.slipType === "gst";
+  const taxPercent = parseFloat(settings.taxPercent ?? "3") || 0;
+  const halfPercent = taxPercent / 2;
   const taxable = c.amount;
-  const cgst = isGst ? Math.round(taxable * 1.5) / 100 : 0;
-  const sgst = isGst ? Math.round(taxable * 1.5) / 100 : 0;
+  const cgst = isGst ? Math.round(taxable * halfPercent) / 100 : 0;
+  const sgst = isGst ? Math.round(taxable * halfPercent) / 100 : 0;
   const total = isGst ? Math.round((taxable + cgst + sgst) * 100) / 100 : c.amount;
 
   return (
@@ -104,8 +110,8 @@ export default async function SlipPage({
         {isGst ? (
           <>
             <Row label="Taxable value" value={fmtMoney(taxable)} />
-            <Row label="CGST @ 1.5%" value={fmtMoney(cgst)} />
-            <Row label="SGST @ 1.5%" value={fmtMoney(sgst)} />
+            <Row label={`CGST @ ${halfPercent}%`} value={fmtMoney(cgst)} />
+            <Row label={`SGST @ ${halfPercent}%`} value={fmtMoney(sgst)} />
           </>
         ) : null}
 

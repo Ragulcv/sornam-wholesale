@@ -15,8 +15,8 @@ const cormorant = Cormorant_Garamond({
 });
 
 export const metadata: Metadata = {
-  title: "Sornam Wholesale",
-  description: "Bullion wholesale — bookings, collections & billing, in one place.",
+  title: "Tracker",
+  description: "Tracker",
 };
 
 export default function RootLayout({
