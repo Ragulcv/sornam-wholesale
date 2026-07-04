@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { fmtRate } from "@/lib/format";
 import { Card } from "@/components/ui";
 
@@ -37,13 +37,8 @@ export default function LivePriceStrip({
     }
   }
 
-  // Refresh on mount, then every 60s while the page is open.
-  useEffect(() => {
-    refresh();
-    const t = setInterval(refresh, 60_000);
-    return () => clearInterval(t);
-  }, []);
-
+  // No auto-fetch — the endpoint is only hit when the user clicks refresh
+  // (or the "Use current price" button in a booking).
   if (gold == null && silver == null) return null;
 
   return (
