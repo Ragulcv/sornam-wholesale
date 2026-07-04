@@ -34,6 +34,8 @@ export default function NewBookingForm({
   const [rateMode, setRateMode] = useState<"locked" | "float">("locked");
   const [rateUnit, setRateUnit] = useState<RateUnit>("per_10g");
   const [rate, setRate] = useState("");
+  const [fetchingPrice, setFetchingPrice] = useState(false);
+  const [liveNote, setLiveNote] = useState<string | null>(null);
 
   const currentPrice = metal === "gold" ? currentGold : currentSilver;
   const effectivePurity = customPurity.trim() || purity;
@@ -43,6 +45,32 @@ export default function NewBookingForm({
     setPurity(m === "gold" ? "995" : "999");
     setCustomPurity("");
     setRateUnit(m === "gold" ? "per_10g" : "per_kg");
+    setLiveNote(null);
+  }
+
+  async function useCurrentPrice() {
+    setFetchingPrice(true);
+    setLiveNote(null);
+    try {
+      const r = await fetch("/api/price/current");
+      const d = await r.json();
+      const val = metal === "gold" ? d.gold : d.silver;
+      if (d.ok && val != null) {
+        setRate(String(val));
+        setRateUnit(metal === "gold" ? "per_10g" : "per_kg");
+        setLiveNote(
+          `Live · ${fmtRate(val)} ${metal === "gold" ? "/10g" : "/kg"}${
+            d.sourceTime ? ` · ${d.sourceTime}` : ""
+          }`,
+        );
+      } else {
+        setLiveNote("Live price unavailable — enter manually.");
+      }
+    } catch {
+      setLiveNote("Live price unavailable — enter manually.");
+    } finally {
+      setFetchingPrice(false);
+    }
   }
 
   if (state?.ok) {
@@ -229,20 +257,26 @@ export default function NewBookingForm({
                   <option value="per_g">/g</option>
                 </select>
               </div>
-              {currentPrice != null && (
+              <div className="mt-2 flex flex-wrap items-center gap-2">
                 <button
                   type="button"
-                  onClick={() => setRate(String(currentPrice))}
-                  className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-gold/40 bg-[rgba(201,162,39,.08)] px-3 py-1.5 text-xs font-semibold text-gold-deep"
+                  onClick={useCurrentPrice}
+                  disabled={fetchingPrice}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-gold/40 bg-[rgba(201,162,39,.08)] px-3 py-1.5 text-xs font-semibold text-gold-deep disabled:opacity-50"
                 >
-                  Use current price · {fmtRate(currentPrice)}
-                  {priceUpdatedAt && (
-                    <span className="font-normal text-mute">
-                      (updated {new Date(priceUpdatedAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })})
-                    </span>
-                  )}
+                  <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M3 12a9 9 0 0 1 15-6.7L21 8M21 3v5h-5M21 12a9 9 0 0 1-15 6.7L3 16M3 21v-5h5" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                  {fetchingPrice ? "Fetching…" : "Use current price"}
                 </button>
-              )}
+                {liveNote ? (
+                  <span className="text-xs text-mute">{liveNote}</span>
+                ) : currentPrice != null ? (
+                  <span className="text-xs text-mute">
+                    last {fmtRate(currentPrice)} {metal === "gold" ? "/10g" : "/kg"}
+                  </span>
+                ) : null}
+              </div>
             </>
           )}
         </div>
