@@ -151,6 +151,7 @@ export async function recordCollectionAction(
   if (weight <= 0) return { error: "Enter the collected weight." };
   const rate = numField(fd, "rate");
   if (rate <= 0) return { error: "Enter the rate." };
+  const rateUnit = (str(fd, "rateUnit") || "per_10g") as RateUnit;
   const paymentMode = (str(fd, "paymentMode") || "cash") as PaymentMode;
   const slipType = str(fd, "slipType") === "gst" ? "gst" : "plain";
 
@@ -158,6 +159,7 @@ export async function recordCollectionAction(
     bookingId,
     weightCollectedG: weight,
     rate,
+    rateUnit,
     paymentMode,
     slipType,
   });

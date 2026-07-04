@@ -61,6 +61,7 @@ export const collections = pgTable("collections", {
   billNumber: integer("bill_number").generatedAlwaysAsIdentity(),
   weightCollectedG: numeric("weight_collected_g", { precision: 12, scale: 3 }).notNull(),
   rateApplied: numeric("rate_applied", { precision: 12, scale: 2 }).notNull(),
+  rateUnit: rateUnitEnum("rate_unit").notNull().default("per_10g"),
   paymentMode: paymentModeEnum("payment_mode").notNull(),
   amount: numeric("amount", { precision: 14, scale: 2 }).notNull(),
   slipType: slipTypeEnum("slip_type").notNull().default("plain"),

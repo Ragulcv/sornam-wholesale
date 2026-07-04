@@ -44,6 +44,7 @@ export interface CollectionRow {
   purity: string;
   weightCollectedG: number;
   rateApplied: number;
+  rateUnit: RateUnit;
   paymentMode: PaymentMode;
   amount: number;
   slipType: "gst" | "plain";
@@ -183,6 +184,7 @@ export async function listCollections(filter?: {
     purity,
     weightCollectedG: num(c.weightCollectedG),
     rateApplied: num(c.rateApplied),
+    rateUnit: c.rateUnit,
     paymentMode: c.paymentMode,
     amount: num(c.amount),
     slipType: c.slipType,
@@ -204,7 +206,7 @@ export async function getCollection(id: string): Promise<
       c: collections,
       metal: bookings.metal,
       purity: bookings.purity,
-      rateUnit: bookings.rateUnit,
+      rateUnit: collections.rateUnit,
       bookingWeightG: bookings.weightBookedG,
       cName: customers.name,
       cPhone: customers.phone,
@@ -439,6 +441,7 @@ export async function recordCollection(data: {
   bookingId: string;
   weightCollectedG: number;
   rate: number;
+  rateUnit?: RateUnit;
   paymentMode: PaymentMode;
   slipType: "gst" | "plain";
 }): Promise<{ id: string; billNumber: number }> {
@@ -447,7 +450,7 @@ export async function recordCollection(data: {
   )[0];
   if (!b) throw new Error("Booking not found");
 
-  const unit = b.rateUnit as RateUnit;
+  const unit = data.rateUnit ?? (b.rateUnit as RateUnit);
   const amount = calcAmount(data.weightCollectedG, data.rate, unit);
 
   const [row] = await db
@@ -456,6 +459,7 @@ export async function recordCollection(data: {
       bookingId: data.bookingId,
       weightCollectedG: String(data.weightCollectedG),
       rateApplied: String(data.rate),
+      rateUnit: unit,
       paymentMode: data.paymentMode,
       amount: String(amount),
       slipType: data.slipType,

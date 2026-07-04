@@ -83,6 +83,7 @@ export default async function BookingDetailPage({
           </h2>
           <RecordCollectionForm
             bookingId={b.id}
+            metal={b.metal}
             pendingWeightG={b.weightPendingG}
             rateMode={b.rateMode}
             defaultRate={b.lockedRate}
@@ -117,7 +118,7 @@ export default async function BookingDetailPage({
               <div className="min-w-0 flex-1 text-sm">
                 <div className="num text-ink">{fmtWeight(c.weightCollectedG)}</div>
                 <div className="text-xs text-mute">
-                  {fmtRate(c.rateApplied)} {unitLabel(b.rateUnit)} ·{" "}
+                  {fmtRate(c.rateApplied)} {unitLabel(c.rateUnit)} ·{" "}
                   {fmtDateTime(c.createdAt)}
                 </div>
               </div>

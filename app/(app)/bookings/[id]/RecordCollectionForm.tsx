@@ -7,6 +7,7 @@ import { Card } from "@/components/ui";
 import {
   calcAmount,
   fmtMoney,
+  fmtRate,
   paymentModeLabel,
   unitLabel,
   PAYMENT_MODES,
@@ -19,12 +20,14 @@ const fieldCls =
 
 export default function RecordCollectionForm({
   bookingId,
+  metal,
   pendingWeightG,
   rateMode,
   defaultRate,
   rateUnit,
 }: {
   bookingId: string;
+  metal: "gold" | "silver";
   pendingWeightG: number;
   rateMode: "locked" | "float";
   defaultRate: number | null;
@@ -38,8 +41,32 @@ export default function RecordCollectionForm({
 
   const [weight, setWeight] = useState(String(pendingWeightG));
   const [rate, setRate] = useState(defaultRate != null ? String(defaultRate) : "");
+  const [unit, setUnit] = useState<RateUnit>(rateUnit);
   const [mode, setMode] = useState<PaymentMode>("cash");
   const [slip, setSlip] = useState<"plain" | "gst">("plain");
+  const [fetchingPrice, setFetchingPrice] = useState(false);
+  const [liveNote, setLiveNote] = useState<string | null>(null);
+
+  async function useCurrentPrice() {
+    setFetchingPrice(true);
+    setLiveNote(null);
+    try {
+      const res = await fetch("/api/price/current");
+      const d = await res.json();
+      const val = metal === "gold" ? d.gold : d.silver;
+      if (d.ok && val != null) {
+        setRate(String(val));
+        setUnit(metal === "gold" ? "per_10g" : "per_kg");
+        setLiveNote(`Live · ${fmtRate(val)} ${metal === "gold" ? "/10g" : "/kg"}`);
+      } else {
+        setLiveNote("Live price unavailable.");
+      }
+    } catch {
+      setLiveNote("Live price unavailable.");
+    } finally {
+      setFetchingPrice(false);
+    }
+  }
 
   useEffect(() => {
     if (state?.ok && state.collectionId) {
@@ -49,12 +76,13 @@ export default function RecordCollectionForm({
 
   const w = parseFloat(weight) || 0;
   const r = parseFloat(rate) || 0;
-  const amount = calcAmount(w, r, rateUnit);
+  const amount = calcAmount(w, r, unit);
   const over = w > pendingWeightG + 1e-6;
 
   return (
     <form action={dispatch}>
       <input type="hidden" name="bookingId" value={bookingId} />
+      <input type="hidden" name="rateUnit" value={unit} />
       <input type="hidden" name="paymentMode" value={mode} />
       <input type="hidden" name="slipType" value={slip} />
 
@@ -75,22 +103,47 @@ export default function RecordCollectionForm({
               Pending: {pendingWeightG.toFixed(3)} g
             </span>
           </label>
-          <label className="block">
+          <div className="block">
             <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-mute">
-              Rate {unitLabel(rateUnit)}
+              Rate {unitLabel(unit)}
               {rateMode === "locked" && (
                 <span className="ml-1 font-normal text-gold-deep">(locked)</span>
               )}
             </span>
-            <input
-              name="rate"
-              inputMode="decimal"
-              value={rate}
-              onChange={(e) => setRate(e.target.value)}
-              className={`${fieldCls} num text-lg`}
-              placeholder="Today's rate"
-            />
-          </label>
+            <div className="flex gap-2">
+              <input
+                name="rate"
+                inputMode="decimal"
+                value={rate}
+                onChange={(e) => setRate(e.target.value)}
+                className={`${fieldCls} num flex-1 text-lg`}
+                placeholder="Today's rate"
+              />
+              <select
+                value={unit}
+                onChange={(e) => setUnit(e.target.value as RateUnit)}
+                className="rounded-xl border border-line bg-cream px-2 text-sm"
+              >
+                <option value="per_10g">/10g</option>
+                <option value="per_kg">/kg</option>
+                <option value="per_g">/g</option>
+              </select>
+            </div>
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={useCurrentPrice}
+                disabled={fetchingPrice}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-gold/40 bg-[rgba(201,162,39,.08)] px-3 py-1.5 text-xs font-semibold text-gold-deep disabled:opacity-50"
+              >
+                <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M3 12a9 9 0 0 1 15-6.7L21 8M21 3v5h-5M21 12a9 9 0 0 1-15 6.7L3 16M3 21v-5h5" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+                {fetchingPrice ? "Fetching…" : "Use current price"}
+              </button>
+              {liveNote && <span className="text-xs text-mute">{liveNote}</span>}
+            </div>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">

@@ -108,6 +108,7 @@ export default async function BookingsPage({
               <BookingRowActions
                 booking={{
                   id: b.id,
+                  metal: b.metal,
                   rateMode: b.rateMode,
                   lockedRate: b.lockedRate,
                   rateUnit: b.rateUnit,
