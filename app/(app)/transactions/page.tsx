@@ -17,6 +17,7 @@ import {
   PageHeader,
   StatTile,
 } from "@/components/ui";
+import TransactionRowActions from "@/components/TransactionRowActions";
 
 export const dynamic = "force-dynamic";
 
@@ -108,34 +109,39 @@ export default async function TransactionsPage({
       ) : (
         <Card className="divide-y divide-line2">
           {rows.map((c) => (
-            <Link
+            <div
               key={c.id}
-              href={`/slip/${c.id}`}
               className="flex items-center gap-3 px-4 py-3 transition hover:bg-cream"
             >
-              <div className="num w-14 text-xs font-semibold text-gold-deep">
-                {billNo(c.billNumber)}
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="truncate text-sm font-medium text-ink">
-                  {c.customerName}
+              <Link
+                href={`/slip/${c.id}`}
+                className="flex min-w-0 flex-1 items-center gap-3"
+              >
+                <div className="num w-14 text-xs font-semibold text-gold-deep">
+                  {billNo(c.billNumber)}
                 </div>
-                <div className="mt-0.5 flex items-center gap-2 text-xs text-mute">
-                  <MetalBadge metal={c.metal} />
-                  <span>· {fmtWeight(c.weightCollectedG)}</span>
-                  <span>· {fmtDateTime(c.createdAt)}</span>
-                  {c.slipType === "gst" && (
-                    <span className="rounded bg-[#eef4ff] px-1 text-[10px] font-semibold text-info">
-                      GST
-                    </span>
-                  )}
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-sm font-medium text-ink">
+                    {c.customerName}
+                  </div>
+                  <div className="mt-0.5 flex items-center gap-2 text-xs text-mute">
+                    <MetalBadge metal={c.metal} />
+                    <span>· {fmtWeight(c.weightCollectedG)}</span>
+                    <span>· {fmtDateTime(c.createdAt)}</span>
+                    {c.slipType === "gst" && (
+                      <span className="rounded bg-[#eef4ff] px-1 text-[10px] font-semibold text-info">
+                        GST
+                      </span>
+                    )}
+                  </div>
                 </div>
-              </div>
-              <ModeBadge mode={c.paymentMode} />
-              <div className="num w-28 text-right text-ink">
-                {fmtMoney(c.amount)}
-              </div>
-            </Link>
+                <ModeBadge mode={c.paymentMode} />
+                <div className="num w-28 text-right text-ink">
+                  {fmtMoney(c.amount)}
+                </div>
+              </Link>
+              <TransactionRowActions collectionId={c.id} />
+            </div>
           ))}
         </Card>
       )}

@@ -14,9 +14,11 @@ import {
   createBooking,
   createCustomer,
   deleteBooking,
+  deleteCollection,
   deleteCustomer,
   findOrCreateCustomer,
   recordCollection,
+  updateCustomer,
   updateSettings,
 } from "@/lib/queries";
 import type { PaymentMode, RateUnit } from "@/lib/format";
@@ -196,6 +198,33 @@ export async function deleteBookingAction(id: string): Promise<void> {
   revalidatePath("/bookings");
   revalidatePath("/transactions");
   revalidatePath("/customers");
+}
+
+export async function deleteCollectionAction(id: string): Promise<void> {
+  await requireSession();
+  await deleteCollection(id);
+  revalidatePath("/");
+  revalidatePath("/transactions");
+  revalidatePath("/bookings");
+}
+
+export async function updateCustomerAction(
+  _prev: ActionState,
+  fd: FormData,
+): Promise<ActionState> {
+  await requireSession();
+  const id = str(fd, "id");
+  const name = str(fd, "name");
+  if (!id) return { error: "Missing customer." };
+  if (!name) return { error: "Name is required." };
+  await updateCustomer(id, {
+    name,
+    phone: str(fd, "phone") || null,
+    gstin: str(fd, "gstin") || null,
+    notes: str(fd, "notes") || null,
+  });
+  revalidatePath("/customers");
+  return { ok: true };
 }
 
 export async function deleteCustomerAction(

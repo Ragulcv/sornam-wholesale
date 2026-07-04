@@ -55,7 +55,15 @@ export default async function CustomersPage() {
                   </div>
                 </div>
               </Link>
-              <CustomerRowActions customerId={c.id} />
+              <CustomerRowActions
+                customer={{
+                  id: c.id,
+                  name: c.name,
+                  phone: c.phone,
+                  gstin: c.gstin,
+                  notes: c.notes,
+                }}
+              />
             </div>
           ))}
         </Card>

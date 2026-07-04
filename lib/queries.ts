@@ -241,6 +241,7 @@ export interface CustomerRow {
   name: string;
   phone: string | null;
   gstin: string | null;
+  notes: string | null;
   bookingCount: number;
   pendingWeightG: number;
 }
@@ -255,6 +256,7 @@ export async function listCustomers(): Promise<CustomerRow[]> {
       name: c.name,
       phone: c.phone,
       gstin: c.gstin,
+      notes: c.notes,
       bookingCount: mine.length,
       pendingWeightG: mine.reduce((a, b) => a + b.weightPendingG, 0),
     };
@@ -370,6 +372,53 @@ export async function createBooking(data: {
 /** Delete a booking (its collections cascade via FK). */
 export async function deleteBooking(id: string): Promise<void> {
   await db.delete(bookings).where(eq(bookings.id, id));
+}
+
+/** Delete a single collection and recompute its booking's status/balance. */
+export async function deleteCollection(id: string): Promise<void> {
+  const rows = await db
+    .select({ bookingId: collections.bookingId })
+    .from(collections)
+    .where(eq(collections.id, id));
+  const bookingId = rows[0]?.bookingId;
+  await db.delete(collections).where(eq(collections.id, id));
+  if (!bookingId) return;
+
+  const [totalRows, bookingRows] = await Promise.all([
+    db
+      .select({ total: sql<string>`sum(${collections.weightCollectedG})` })
+      .from(collections)
+      .where(eq(collections.bookingId, bookingId)),
+    db.select().from(bookings).where(eq(bookings.id, bookingId)),
+  ]);
+  const b = bookingRows[0];
+  if (!b) return;
+  const collected = num(totalRows[0]?.total ?? null);
+  const booked = num(b.weightBookedG);
+  const status =
+    collected >= booked ? "completed" : collected > 0 ? "partial" : "open";
+  await db.update(bookings).set({ status }).where(eq(bookings.id, bookingId));
+}
+
+/** Update a customer's details. */
+export async function updateCustomer(
+  id: string,
+  data: {
+    name: string;
+    phone?: string | null;
+    gstin?: string | null;
+    notes?: string | null;
+  },
+): Promise<void> {
+  await db
+    .update(customers)
+    .set({
+      name: data.name.trim(),
+      phone: data.phone?.trim() || null,
+      gstin: data.gstin?.trim() || null,
+      notes: data.notes?.trim() || null,
+    })
+    .where(eq(customers.id, id));
 }
 
 /** Delete a customer — blocked if they have bookings (delete those first). */
