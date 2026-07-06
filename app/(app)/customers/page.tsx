@@ -4,6 +4,7 @@ import { fmtWeight } from "@/lib/format";
 import { Card, EmptyState, PageHeader } from "@/components/ui";
 import AddCustomer from "./AddCustomer";
 import CustomerRowActions from "@/components/CustomerRowActions";
+import ImportCustomers from "@/components/ImportCustomers";
 
 export const dynamic = "force-dynamic";
 
@@ -15,6 +16,7 @@ export default async function CustomersPage() {
       <PageHeader
         title="Customers"
         subtitle="Everyone you deal with, and what they still have pending."
+        action={<ImportCustomers />}
       />
 
       <AddCustomer />

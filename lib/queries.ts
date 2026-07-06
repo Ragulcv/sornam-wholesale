@@ -321,6 +321,58 @@ export async function createCustomer(data: {
   return row.id;
 }
 
+/** Bulk-add customers from an import; skips blank-name and duplicate rows. */
+export async function bulkAddCustomers(
+  rows: {
+    name?: string;
+    phone?: string | null;
+    gstin?: string | null;
+    notes?: string | null;
+  }[],
+): Promise<{ added: number; duplicates: number; invalid: number }> {
+  const existing = await db
+    .select({ name: customers.name, phone: customers.phone })
+    .from(customers);
+  const key = (n: string, p?: string | null) =>
+    `${n.trim().toLowerCase()}|${(p || "").replace(/\D/g, "")}`;
+  const seen = new Set(existing.map((e) => key(e.name, e.phone)));
+
+  const toInsert: {
+    name: string;
+    phone: string | null;
+    gstin: string | null;
+    notes: string | null;
+  }[] = [];
+  let duplicates = 0;
+  let invalid = 0;
+
+  for (const r of rows) {
+    const name = (r.name ?? "").trim();
+    if (!name) {
+      invalid++;
+      continue;
+    }
+    const k = key(name, r.phone);
+    if (seen.has(k)) {
+      duplicates++;
+      continue;
+    }
+    seen.add(k);
+    toInsert.push({
+      name,
+      phone: (r.phone ?? "").trim() || null,
+      gstin: (r.gstin ?? "").trim() || null,
+      notes: (r.notes ?? "").trim() || null,
+    });
+  }
+
+  // Insert in chunks to stay well within query limits.
+  for (let i = 0; i < toInsert.length; i += 500) {
+    await db.insert(customers).values(toInsert.slice(i, i + 500));
+  }
+  return { added: toInsert.length, duplicates, invalid };
+}
+
 /** Reuse a customer by exact (case-insensitive) name + phone, else create. */
 export async function findOrCreateCustomer(
   name: string,
