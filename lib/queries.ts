@@ -1,5 +1,5 @@
 import "server-only";
-import { and, desc, eq, gte, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, sql } from "drizzle-orm";
 import { db } from "./db";
 import {
   bookings,
@@ -426,6 +426,60 @@ export async function createBooking(data: {
 /** Delete a booking (its collections cascade via FK). */
 export async function deleteBooking(id: string): Promise<void> {
   await db.delete(bookings).where(eq(bookings.id, id));
+}
+
+/** Bulk-delete bookings (their collections cascade). */
+export async function bulkDeleteBookings(ids: string[]): Promise<number> {
+  if (!ids.length) return 0;
+  await db.delete(bookings).where(inArray(bookings.id, ids));
+  return ids.length;
+}
+
+/** Bulk-delete collections and recompute each affected booking's status. */
+export async function bulkDeleteCollections(ids: string[]): Promise<number> {
+  if (!ids.length) return 0;
+  const affected = await db
+    .select({ bookingId: collections.bookingId })
+    .from(collections)
+    .where(inArray(collections.id, ids));
+  const bookingIds = [...new Set(affected.map((a) => a.bookingId))];
+
+  await db.delete(collections).where(inArray(collections.id, ids));
+
+  for (const bid of bookingIds) {
+    const [totalRows, bookingRows] = await Promise.all([
+      db
+        .select({ total: sql<string>`sum(${collections.weightCollectedG})` })
+        .from(collections)
+        .where(eq(collections.bookingId, bid)),
+      db.select().from(bookings).where(eq(bookings.id, bid)),
+    ]);
+    const b = bookingRows[0];
+    if (!b) continue;
+    const collected = num(totalRows[0]?.total ?? null);
+    const booked = num(b.weightBookedG);
+    const status =
+      collected >= booked ? "completed" : collected > 0 ? "partial" : "open";
+    await db.update(bookings).set({ status }).where(eq(bookings.id, bid));
+  }
+  return ids.length;
+}
+
+/** Bulk-delete customers; those with bookings are skipped. */
+export async function bulkDeleteCustomers(
+  ids: string[],
+): Promise<{ deleted: number; skipped: number }> {
+  if (!ids.length) return { deleted: 0, skipped: 0 };
+  const withBookings = await db
+    .select({ customerId: bookings.customerId })
+    .from(bookings)
+    .where(inArray(bookings.customerId, ids));
+  const blocked = new Set(withBookings.map((w) => w.customerId));
+  const deletable = ids.filter((id) => !blocked.has(id));
+  if (deletable.length) {
+    await db.delete(customers).where(inArray(customers.id, deletable));
+  }
+  return { deleted: deletable.length, skipped: ids.length - deletable.length };
 }
 
 /** Delete a single collection and recompute its booking's status/balance. */

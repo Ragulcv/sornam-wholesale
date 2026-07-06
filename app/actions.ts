@@ -11,6 +11,9 @@ import {
   verifyPinOnly,
 } from "@/lib/auth";
 import {
+  bulkDeleteBookings,
+  bulkDeleteCollections,
+  bulkDeleteCustomers,
   createBooking,
   createCustomer,
   deleteBooking,
@@ -208,6 +211,32 @@ export async function deleteCollectionAction(id: string): Promise<void> {
   revalidatePath("/");
   revalidatePath("/transactions");
   revalidatePath("/bookings");
+}
+
+export async function bulkDeleteBookingsAction(ids: string[]): Promise<void> {
+  await requireSession();
+  await bulkDeleteBookings(ids);
+  revalidatePath("/");
+  revalidatePath("/bookings");
+  revalidatePath("/transactions");
+  revalidatePath("/customers");
+}
+
+export async function bulkDeleteCollectionsAction(ids: string[]): Promise<void> {
+  await requireSession();
+  await bulkDeleteCollections(ids);
+  revalidatePath("/");
+  revalidatePath("/transactions");
+  revalidatePath("/bookings");
+}
+
+export async function bulkDeleteCustomersAction(
+  ids: string[],
+): Promise<{ deleted: number; skipped: number }> {
+  await requireSession();
+  const res = await bulkDeleteCustomers(ids);
+  revalidatePath("/customers");
+  return res;
 }
 
 export async function updateCustomerAction(
