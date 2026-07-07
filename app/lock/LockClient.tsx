@@ -24,10 +24,10 @@ export default function LockClient({ mode }: { mode: "login" | "setup" }) {
 
   useEffect(() => {
     if (state?.ok) {
-      // Cookie is already set by the action response; a client nav is fast and
-      // sends it to the proxy. refresh() re-runs the now-authed server render.
-      router.push("/");
-      router.refresh();
+      // Cookie is already set by the action response; a single client nav sends
+      // it to the proxy and renders the authed dashboard (dynamic route → always
+      // fresh, so no extra refresh() round-trip needed).
+      router.replace("/");
       return;
     }
     if (state?.error) {
