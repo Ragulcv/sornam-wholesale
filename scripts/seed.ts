@@ -3,19 +3,29 @@ config({ path: ".env.local" });
 
 import bcrypt from "bcryptjs";
 import { db } from "../lib/db";
-import { bookings, collections, customers, settings } from "../lib/db/schema";
-import { calcAmount } from "../lib/format";
+import {
+  operators,
+  parties,
+  transactions,
+  transactionLines,
+  metalMovements,
+  settlements,
+  bookings,
+  stock,
+  settings,
+} from "../lib/db/schema";
+import { pure, lineAmount } from "../lib/bullion";
 
 async function main() {
-  console.log("Seeding Sornam Wholesale demo data…");
+  console.log("Seeding Logimax-style bullion ledger…");
 
-  // Clean slate.
-  await db.delete(collections);
+  await db.delete(transactions); // cascades lines/movements/settlements
   await db.delete(bookings);
-  await db.delete(customers);
+  await db.delete(parties);
+  await db.delete(operators);
+  await db.delete(stock);
   await db.delete(settings);
 
-  // Settings + PIN 1234
   const pinHash = await bcrypt.hash("1234", 10);
   await db.insert(settings).values({
     id: 1,
@@ -23,141 +33,85 @@ async function main() {
     autoLogoffMinutes: 7,
     gstin: "33ABCDE1234F1Z5",
     taxPercent: "3",
-    defaultGoldRate: "72500",
-    defaultSilverRate: "92000",
+    tdsPercent: "0.1",
+    defaultGoldRate: "7250",
+    defaultSilverRate: "92",
     priceUpdatedAt: new Date(),
   });
 
-  const people = [
-    { name: "Karthik Bullion", phone: "9842010101", gstin: "33AAAAA0000A1Z1" },
-    { name: "Meenakshi Jewellers", phone: "9842020202", gstin: null },
-    { name: "Senthil Traders", phone: "9842030303", gstin: "33BBBBB1111B2Z2" },
-    { name: "Lakshmi Gold House", phone: "9842040404", gstin: null },
-    { name: "Arjun & Sons", phone: "9842050505", gstin: "33CCCCC2222C3Z3" },
-    { name: "Priya Bullion", phone: "9842060606", gstin: null },
-  ];
-  const id: string[] = [];
-  for (const p of people) {
-    const [row] = await db
-      .insert(customers)
-      .values(p)
-      .returning({ id: customers.id });
-    id.push(row.id);
-  }
+  await db.insert(stock).values({
+    id: 1,
+    openingPureGold: "2500.000",
+    openingPureSilver: "40000.000",
+    openingCash: "1500000",
+    openingBank: "5000000",
+  });
 
-  // 1. Karthik — gold 995, locked, partially collected (400g of 1000g)
-  const [b1] = await db
-    .insert(bookings)
+  const [ravi, suresh] = await db
+    .insert(operators)
+    .values([{ name: "Ravi" }, { name: "Suresh" }, { name: "Meena" }])
+    .returning({ id: operators.id, name: operators.name });
+
+  const partyRows = await db
+    .insert(parties)
+    .values([
+      { name: "Karthik Bullion", phone: "9842010101", gstin: "33AAAAA0000A1Z1", type: "customer" },
+      { name: "Senthil Traders", phone: "9842020202", type: "both" },
+      { name: "Lakshmi Gold House", phone: "9842030303", type: "customer" },
+      { name: "Anand Vendor", phone: "9842040404", type: "vendor" },
+    ])
+    .returning({ id: parties.id });
+
+  // Sales #1 — gold, 2 lines at different rates, split cash+bank
+  const [s1] = await db
+    .insert(transactions)
     .values({
-      customerId: id[0],
+      trnType: "sales",
+      partyId: partyRows[0].id,
       metal: "gold",
-      purity: "995",
-      weightBookedG: "1000.000",
-      rateMode: "locked",
-      lockedRate: "72500",
-      rateUnit: "per_10g",
-      advanceAmount: "300000",
-      status: "partial",
+      barRate: "7250",
+      refNo: "S-1001",
+      createdBy: ravi.name,
+      modifiedBy: ravi.name,
     })
-    .returning({ id: bookings.id });
-  await db.insert(collections).values({
-    bookingId: b1.id,
-    weightCollectedG: "400.000",
-    rateApplied: "72500",
-    rateUnit: "per_10g",
-    paymentMode: "bank",
-    amount: String(calcAmount(400, 72500, "per_10g")),
-    slipType: "gst",
-  });
+    .returning({ id: transactions.id });
+  await db.insert(transactionLines).values([
+    { transactionId: s1.id, kind: "sale", particulars: "Gold bar 100g", weight: "100.000", touch: "99.500", pure: String(pure(100, 99.5)), rate: "7250", amount: String(lineAmount(100, 7250)), sortOrder: 0 },
+    { transactionId: s1.id, kind: "sale", particulars: "Gold coin 50g", weight: "50.000", touch: "99.900", pure: String(pure(50, 99.9)), rate: "7260", amount: String(lineAmount(50, 7260)), sortOrder: 1 },
+  ]);
+  await db.insert(settlements).values([
+    { transactionId: s1.id, mode: "cash", direction: "received", amount: "500000" },
+    { transactionId: s1.id, mode: "bank", direction: "received", amount: String(lineAmount(100, 7250) + lineAmount(50, 7260) - 500000), bankName: "HDFC" },
+  ]);
 
-  // 2. Meenakshi — gold 916, float, open
-  await db.insert(bookings).values({
-    customerId: id[1],
-    metal: "gold",
-    purity: "916",
-    weightBookedG: "500.000",
-    rateMode: "float",
-    rateUnit: "per_10g",
-    advanceAmount: "0",
-    status: "open",
+  // Sales #2 — silver, single cash
+  const [s2] = await db
+    .insert(transactions)
+    .values({ trnType: "sales", partyId: partyRows[2].id, metal: "silver", barRate: "92", refNo: "S-1002", createdBy: suresh.name, modifiedBy: suresh.name })
+    .returning({ id: transactions.id });
+  await db.insert(transactionLines).values({
+    transactionId: s2.id, kind: "sale", particulars: "Silver bar 5kg", weight: "5000.000", touch: "99.900", pure: String(pure(5000, 99.9)), rate: "92", amount: String(lineAmount(5000, 92)), sortOrder: 0,
   });
+  await db.insert(settlements).values({ transactionId: s2.id, mode: "cash", direction: "received", amount: String(lineAmount(5000, 92)) });
 
-  // 3. Senthil — silver 999, locked, partial (10kg of 25kg)
-  const [b3] = await db
-    .insert(bookings)
-    .values({
-      customerId: id[2],
-      metal: "silver",
-      purity: "999",
-      weightBookedG: "25000.000",
-      rateMode: "locked",
-      lockedRate: "92000",
-      rateUnit: "per_kg",
-      advanceAmount: "50000",
-      status: "partial",
-    })
-    .returning({ id: bookings.id });
-  await db.insert(collections).values({
-    bookingId: b3.id,
-    weightCollectedG: "10000.000",
-    rateApplied: "92000",
-    rateUnit: "per_kg",
-    paymentMode: "cash",
-    amount: String(calcAmount(10000, 92000, "per_kg")),
-    slipType: "plain",
+  // Purchase #1 — gold in, metal received + cash paid
+  const [p1] = await db
+    .insert(transactions)
+    .values({ trnType: "purchase", partyId: partyRows[3].id, metal: "gold", barRate: "7240", refNo: "P-2001", createdBy: ravi.name, modifiedBy: ravi.name })
+    .returning({ id: transactions.id });
+  await db.insert(transactionLines).values({
+    transactionId: p1.id, kind: "purchase", particulars: "Old gold 200g", weight: "200.000", touch: "91.600", pure: String(pure(200, 91.6)), rate: "7240", amount: String(lineAmount(200, 7240)), sortOrder: 0,
   });
+  await db.insert(metalMovements).values({ transactionId: p1.id, direction: "received", particulars: "Old gold", weight: "200.000", touch: "91.600", aTouch: "91.500", pure: String(pure(200, 91.6)) });
+  await db.insert(settlements).values({ transactionId: p1.id, mode: "bank", direction: "paid", amount: String(lineAmount(200, 7240)), bankName: "ICICI" });
 
-  // 4. Lakshmi — gold 999, locked, completed (200g of 200g)
-  const [b4] = await db
-    .insert(bookings)
-    .values({
-      customerId: id[3],
-      metal: "gold",
-      purity: "999",
-      weightBookedG: "200.000",
-      rateMode: "locked",
-      lockedRate: "73100",
-      rateUnit: "per_10g",
-      advanceAmount: "0",
-      status: "completed",
-    })
-    .returning({ id: bookings.id });
-  await db.insert(collections).values({
-    bookingId: b4.id,
-    weightCollectedG: "200.000",
-    rateApplied: "73100",
-    rateUnit: "per_10g",
-    paymentMode: "bank",
-    amount: String(calcAmount(200, 73100, "per_10g")),
-    slipType: "plain",
-  });
+  // Bookings — one by metal, one by amount
+  await db.insert(bookings).values([
+    { partyId: partyRows[1].id, metal: "gold", bookMode: "metal", weightBooked: "500.000", lockedRate: "7250", advancePaid: "1000000", status: "open", createdBy: ravi.name },
+    { partyId: partyRows[2].id, metal: "gold", bookMode: "amount", amount: "2000000", advancePaid: "2000000", status: "open", createdBy: suresh.name },
+  ]);
 
-  // 5. Arjun — gold 995, locked, open with advance
-  await db.insert(bookings).values({
-    customerId: id[4],
-    metal: "gold",
-    purity: "995",
-    weightBookedG: "1500.000",
-    rateMode: "locked",
-    lockedRate: "72400",
-    rateUnit: "per_10g",
-    advanceAmount: "200000",
-    status: "open",
-  });
-
-  // 6. Priya — silver 999, float, open
-  await db.insert(bookings).values({
-    customerId: id[5],
-    metal: "silver",
-    purity: "999",
-    weightBookedG: "5000.000",
-    rateMode: "float",
-    rateUnit: "per_kg",
-    advanceAmount: "0",
-    status: "open",
-  });
-
-  console.log("✓ Seed complete — 6 customers, 6 bookings. PIN is 1234.");
+  console.log("✓ Seed complete — 3 operators, 4 parties, 3 transactions, 2 bookings. PIN 1234.");
 }
 
 main()

@@ -1,65 +1,36 @@
-// Pure helpers — safe to import from client or server components.
-
-export type RateUnit = "per_10g" | "per_kg" | "per_g";
-
-export function unitDivisor(unit: RateUnit): number {
-  switch (unit) {
-    case "per_10g":
-      return 10;
-    case "per_kg":
-      return 1000;
-    case "per_g":
-      return 1;
-  }
-}
-
-export function unitLabel(unit: RateUnit): string {
-  switch (unit) {
-    case "per_10g":
-      return "/10g";
-    case "per_kg":
-      return "/kg";
-    case "per_g":
-      return "/g";
-  }
-}
-
-/** amount = weight(grams) × rate ÷ unit divisor, rounded to 2 decimals. */
-export function calcAmount(weightG: number, rate: number, unit: RateUnit): number {
-  const raw = (weightG * rate) / unitDivisor(unit);
-  return Math.round(raw * 100) / 100;
-}
+// Display formatters. Rate is always per gram.
+import type { PayMode } from "./bullion";
 
 const inr = new Intl.NumberFormat("en-IN", {
   style: "currency",
   currency: "INR",
   maximumFractionDigits: 2,
 });
-
 export function fmtMoney(n: number | string | null | undefined): string {
   const v = typeof n === "string" ? parseFloat(n) : n ?? 0;
   return inr.format(Number.isFinite(v as number) ? (v as number) : 0);
 }
 
-const weightFmt = new Intl.NumberFormat("en-IN", {
+const wt = new Intl.NumberFormat("en-IN", {
   minimumFractionDigits: 3,
   maximumFractionDigits: 3,
 });
-
 export function fmtWeight(g: number | string | null | undefined): string {
   const v = typeof g === "string" ? parseFloat(g) : g ?? 0;
-  return `${weightFmt.format(Number.isFinite(v as number) ? (v as number) : 0)} g`;
+  return `${wt.format(Number.isFinite(v as number) ? (v as number) : 0)} g`;
 }
+export const fmtPure = fmtWeight;
 
 const rateFmt = new Intl.NumberFormat("en-IN", { maximumFractionDigits: 2 });
-
 export function fmtRate(n: number | string | null | undefined): string {
   const v = typeof n === "string" ? parseFloat(n) : n ?? 0;
   return `₹${rateFmt.format(Number.isFinite(v as number) ? (v as number) : 0)}`;
 }
 
-export function billNo(n: number): string {
-  return `B-${String(n).padStart(4, "0")}`;
+export function fmtTouch(n: number | string | null | undefined): string {
+  if (n == null || n === "") return "-";
+  const v = typeof n === "string" ? parseFloat(n) : n;
+  return Number.isFinite(v as number) ? (v as number).toFixed(2) : "-";
 }
 
 export function fmtDate(d: Date | string): string {
@@ -70,7 +41,6 @@ export function fmtDate(d: Date | string): string {
     year: "numeric",
   });
 }
-
 export function fmtDateTime(d: Date | string): string {
   const date = typeof d === "string" ? new Date(d) : d;
   return date.toLocaleString("en-IN", {
@@ -82,15 +52,10 @@ export function fmtDateTime(d: Date | string): string {
   });
 }
 
-// "upi" is retained only so legacy rows still type-check / display; the app
-// now works in Cash / Bank only.
-export type PaymentMode = "cash" | "bank" | "upi";
+export function txnNo(n: number): string {
+  return `#${String(n).padStart(4, "0")}`;
+}
 
-// Active payment modes offered in the UI.
-export const PAYMENT_MODES: readonly PaymentMode[] = ["cash", "bank"];
-
-export const paymentModeLabel: Record<PaymentMode, string> = {
-  cash: "Cash",
-  bank: "Bank",
-  upi: "UPI",
-};
+export const PAY_MODES = ["cash", "bank"] as const;
+export const payModeLabel: Record<PayMode, string> = { cash: "Cash", bank: "Bank" };
+export const metalLabel = (m: string) => (m === "gold" ? "Gold" : "Silver");
