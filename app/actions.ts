@@ -9,7 +9,17 @@ import {
   setPin,
   setSessionOperator,
   verifyPinAndLogin,
+  currentOperatorName,
 } from "@/lib/auth";
+import {
+  createTransaction,
+  deleteTransaction,
+  type LineInput,
+  type MoveInput,
+  type SettleInput,
+} from "@/lib/queries/transactions";
+import { buildSalesWhatsapp } from "@/lib/whatsapp";
+import type { Metal } from "@/lib/bullion";
 import { getOperator, listOperators } from "@/lib/queries/operators";
 import { updateSettings } from "@/lib/queries/settings";
 import {
@@ -151,6 +161,76 @@ export async function bulkDeletePartiesAction(
   const res = await bulkDeleteParties(ids);
   revalidatePath("/parties");
   return res;
+}
+
+// ---- Transactions -------------------------------------------------------
+
+export interface TxnActionInput {
+  trnType: "sales" | "purchase";
+  partyId: string | null;
+  partyName?: string;
+  partyPhone?: string;
+  metal: Metal;
+  txnDate?: string;
+  barRate?: number;
+  refNo?: string;
+  thru?: string;
+  narration?: string;
+  tdsAmount?: number;
+  lines: LineInput[];
+  movements: MoveInput[];
+  settlements: SettleInput[];
+}
+
+export async function createTransactionAction(
+  input: TxnActionInput,
+): Promise<ActionState> {
+  await requireSession();
+  const validLines = (input.lines || []).filter((l) => l.weight > 0);
+  if (validLines.length === 0) return { error: "Add at least one line item." };
+  if (!input.metal) return { error: "Pick a metal." };
+
+  const operatorName = await currentOperatorName();
+  const { id, serialNo } = await createTransaction({
+    trnType: input.trnType,
+    partyId: input.partyId,
+    metal: input.metal,
+    txnDate: input.txnDate,
+    barRate: input.barRate,
+    refNo: input.refNo,
+    thru: input.thru,
+    narration: input.narration,
+    tdsAmount: input.tdsAmount,
+    operatorName,
+    lines: validLines,
+    movements: input.movements || [],
+    settlements: input.settlements || [],
+  });
+
+  revalidatePath("/");
+  revalidatePath("/history");
+  revalidatePath("/stock");
+
+  let whatsappUrl: string | null = null;
+  if (input.trnType === "sales" && input.partyPhone) {
+    const totalWeight = validLines.reduce((a, l) => a + l.weight, 0);
+    const rate = input.barRate || validLines[0]?.rate || 0;
+    whatsappUrl = buildSalesWhatsapp(input.partyPhone, {
+      partyName: input.partyName || "Customer",
+      metal: input.metal,
+      totalWeight,
+      rate,
+    });
+  }
+  return { ok: true, id, serialNo, whatsappUrl };
+}
+
+export async function deleteTransactionAction(id: string): Promise<void> {
+  await requireSession();
+  await deleteTransaction(id);
+  revalidatePath("/");
+  revalidatePath("/history");
+  revalidatePath("/stock");
 }
 
 // ---- Settings -----------------------------------------------------------
