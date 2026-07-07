@@ -62,10 +62,14 @@ export async function verifyPinAndLogin(pin: string): Promise<LoginResult> {
   const match = s.pinHash ? await bcrypt.compare(pin, s.pinHash) : false;
 
   if (match) {
-    await db
-      .update(settings)
-      .set({ failedAttempts: 0, lockedUntil: null })
-      .where(eq(settings.id, 1));
+    // Only write if there's something to reset — saves a round-trip on the
+    // common (clean) login path.
+    if (s.failedAttempts !== 0 || s.lockedUntil) {
+      await db
+        .update(settings)
+        .set({ failedAttempts: 0, lockedUntil: null })
+        .where(eq(settings.id, 1));
+    }
     const session = await getSession();
     session.authed = true;
     session.since = Date.now();
