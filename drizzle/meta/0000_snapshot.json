@@ -1,5 +1,5 @@
 {
-  "id": "9c82a81b-4a98-4006-9ed5-2f2c372a33e7",
+  "id": "134f28f5-93df-4901-aa52-99eb73abbe08",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -15,8 +15,25 @@
           "notNull": true,
           "default": "gen_random_uuid()"
         },
-        "customer_id": {
-          "name": "customer_id",
+        "serial_no": {
+          "name": "serial_no",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "identity": {
+            "type": "always",
+            "name": "bookings_serial_no_seq",
+            "schema": "public",
+            "increment": "1",
+            "startWith": "1",
+            "minValue": "1",
+            "maxValue": "2147483647",
+            "cache": "1",
+            "cycle": false
+          }
+        },
+        "party_id": {
+          "name": "party_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
@@ -28,24 +45,18 @@
           "primaryKey": false,
           "notNull": true
         },
-        "purity": {
-          "name": "purity",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "weight_booked_g": {
-          "name": "weight_booked_g",
-          "type": "numeric(12, 3)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "rate_mode": {
-          "name": "rate_mode",
-          "type": "rate_mode",
+        "book_mode": {
+          "name": "book_mode",
+          "type": "book_mode",
           "typeSchema": "public",
           "primaryKey": false,
           "notNull": true
+        },
+        "weight_booked": {
+          "name": "weight_booked",
+          "type": "numeric(12, 3)",
+          "primaryKey": false,
+          "notNull": false
         },
         "locked_rate": {
           "name": "locked_rate",
@@ -53,16 +64,14 @@
           "primaryKey": false,
           "notNull": false
         },
-        "rate_unit": {
-          "name": "rate_unit",
-          "type": "rate_unit",
-          "typeSchema": "public",
+        "amount": {
+          "name": "amount",
+          "type": "numeric(14, 2)",
           "primaryKey": false,
-          "notNull": true,
-          "default": "'per_10g'"
+          "notNull": false
         },
-        "advance_amount": {
-          "name": "advance_amount",
+        "advance_paid": {
+          "name": "advance_paid",
           "type": "numeric(14, 2)",
           "primaryKey": false,
           "notNull": true,
@@ -75,6 +84,18 @@
           "primaryKey": false,
           "notNull": true,
           "default": "'open'"
+        },
+        "delivered_txn_id": {
+          "name": "delivered_txn_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
         },
         "notes": {
           "name": "notes",
@@ -92,12 +113,12 @@
       },
       "indexes": {},
       "foreignKeys": {
-        "bookings_customer_id_customers_id_fk": {
-          "name": "bookings_customer_id_customers_id_fk",
+        "bookings_party_id_parties_id_fk": {
+          "name": "bookings_party_id_parties_id_fk",
           "tableFrom": "bookings",
-          "tableTo": "customers",
+          "tableTo": "parties",
           "columnsFrom": [
-            "customer_id"
+            "party_id"
           ],
           "columnsTo": [
             "id"
@@ -112,8 +133,8 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.collections": {
-      "name": "collections",
+    "public.metal_movements": {
+      "name": "metal_movements",
       "schema": "",
       "columns": {
         "id": {
@@ -123,78 +144,59 @@
           "notNull": true,
           "default": "gen_random_uuid()"
         },
-        "booking_id": {
-          "name": "booking_id",
+        "transaction_id": {
+          "name": "transaction_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
         },
-        "bill_number": {
-          "name": "bill_number",
-          "type": "integer",
+        "direction": {
+          "name": "direction",
+          "type": "move_dir",
+          "typeSchema": "public",
           "primaryKey": false,
-          "notNull": true,
-          "identity": {
-            "type": "always",
-            "name": "collections_bill_number_seq",
-            "schema": "public",
-            "increment": "1",
-            "startWith": "1",
-            "minValue": "1",
-            "maxValue": "2147483647",
-            "cache": "1",
-            "cycle": false
-          }
+          "notNull": true
         },
-        "weight_collected_g": {
-          "name": "weight_collected_g",
+        "particulars": {
+          "name": "particulars",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "weight": {
+          "name": "weight",
           "type": "numeric(12, 3)",
           "primaryKey": false,
           "notNull": true
         },
-        "rate_applied": {
-          "name": "rate_applied",
-          "type": "numeric(12, 2)",
+        "touch": {
+          "name": "touch",
+          "type": "numeric(6, 3)",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
-        "payment_mode": {
-          "name": "payment_mode",
-          "type": "payment_mode",
-          "typeSchema": "public",
+        "a_touch": {
+          "name": "a_touch",
+          "type": "numeric(6, 3)",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
-        "amount": {
-          "name": "amount",
-          "type": "numeric(14, 2)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "slip_type": {
-          "name": "slip_type",
-          "type": "slip_type",
-          "typeSchema": "public",
+        "pure": {
+          "name": "pure",
+          "type": "numeric(12, 3)",
           "primaryKey": false,
           "notNull": true,
-          "default": "'plain'"
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
+          "default": "'0'"
         }
       },
       "indexes": {},
       "foreignKeys": {
-        "collections_booking_id_bookings_id_fk": {
-          "name": "collections_booking_id_bookings_id_fk",
-          "tableFrom": "collections",
-          "tableTo": "bookings",
+        "metal_movements_transaction_id_transactions_id_fk": {
+          "name": "metal_movements_transaction_id_transactions_id_fk",
+          "tableFrom": "metal_movements",
+          "tableTo": "transactions",
           "columnsFrom": [
-            "booking_id"
+            "transaction_id"
           ],
           "columnsTo": [
             "id"
@@ -209,8 +211,48 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.customers": {
-      "name": "customers",
+    "public.operators": {
+      "name": "operators",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "active": {
+          "name": "active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.parties": {
+      "name": "parties",
       "schema": "",
       "columns": {
         "id": {
@@ -237,6 +279,34 @@
           "type": "text",
           "primaryKey": false,
           "notNull": false
+        },
+        "type": {
+          "name": "type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'customer'"
+        },
+        "opening_pure_gold": {
+          "name": "opening_pure_gold",
+          "type": "numeric(14, 3)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'0'"
+        },
+        "opening_pure_silver": {
+          "name": "opening_pure_silver",
+          "type": "numeric(14, 3)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'0'"
+        },
+        "opening_cash": {
+          "name": "opening_cash",
+          "type": "numeric(14, 2)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'0'"
         },
         "notes": {
           "name": "notes",
@@ -303,6 +373,20 @@
           "primaryKey": false,
           "notNull": false
         },
+        "tax_percent": {
+          "name": "tax_percent",
+          "type": "numeric(5, 2)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'3'"
+        },
+        "tds_percent": {
+          "name": "tds_percent",
+          "type": "numeric(5, 2)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'0'"
+        },
         "default_gold_rate": {
           "name": "default_gold_rate",
           "type": "numeric(12, 2)",
@@ -314,6 +398,12 @@
           "type": "numeric(12, 2)",
           "primaryKey": false,
           "notNull": false
+        },
+        "price_updated_at": {
+          "name": "price_updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {},
@@ -323,16 +413,382 @@
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
+    },
+    "public.settlements": {
+      "name": "settlements",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "transaction_id": {
+          "name": "transaction_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "mode": {
+          "name": "mode",
+          "type": "pay_mode",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "direction": {
+          "name": "direction",
+          "type": "move_dir",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "amount": {
+          "name": "amount",
+          "type": "numeric(14, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "bank_name": {
+          "name": "bank_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "settlements_transaction_id_transactions_id_fk": {
+          "name": "settlements_transaction_id_transactions_id_fk",
+          "tableFrom": "settlements",
+          "tableTo": "transactions",
+          "columnsFrom": [
+            "transaction_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.stock": {
+      "name": "stock",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true,
+          "default": 1
+        },
+        "opening_pure_gold": {
+          "name": "opening_pure_gold",
+          "type": "numeric(14, 3)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'0'"
+        },
+        "opening_pure_silver": {
+          "name": "opening_pure_silver",
+          "type": "numeric(14, 3)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'0'"
+        },
+        "opening_cash": {
+          "name": "opening_cash",
+          "type": "numeric(14, 2)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'0'"
+        },
+        "opening_bank": {
+          "name": "opening_bank",
+          "type": "numeric(14, 2)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'0'"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.transaction_lines": {
+      "name": "transaction_lines",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "transaction_id": {
+          "name": "transaction_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "kind": {
+          "name": "kind",
+          "type": "line_kind",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "particulars": {
+          "name": "particulars",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "weight": {
+          "name": "weight",
+          "type": "numeric(12, 3)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "touch": {
+          "name": "touch",
+          "type": "numeric(6, 3)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "pure": {
+          "name": "pure",
+          "type": "numeric(12, 3)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'0'"
+        },
+        "rate": {
+          "name": "rate",
+          "type": "numeric(12, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "amount": {
+          "name": "amount",
+          "type": "numeric(14, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "sort_order": {
+          "name": "sort_order",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "transaction_lines_transaction_id_transactions_id_fk": {
+          "name": "transaction_lines_transaction_id_transactions_id_fk",
+          "tableFrom": "transaction_lines",
+          "tableTo": "transactions",
+          "columnsFrom": [
+            "transaction_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.transactions": {
+      "name": "transactions",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "serial_no": {
+          "name": "serial_no",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "identity": {
+            "type": "always",
+            "name": "transactions_serial_no_seq",
+            "schema": "public",
+            "increment": "1",
+            "startWith": "1",
+            "minValue": "1",
+            "maxValue": "2147483647",
+            "cache": "1",
+            "cycle": false
+          }
+        },
+        "trn_type": {
+          "name": "trn_type",
+          "type": "trn_type",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "party_id": {
+          "name": "party_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "metal": {
+          "name": "metal",
+          "type": "metal",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "txn_date": {
+          "name": "txn_date",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "bar_rate": {
+          "name": "bar_rate",
+          "type": "numeric(12, 2)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "ref_no": {
+          "name": "ref_no",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "thru": {
+          "name": "thru",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "narration": {
+          "name": "narration",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "tds_amount": {
+          "name": "tds_amount",
+          "type": "numeric(14, 2)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'0'"
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "modified_by": {
+          "name": "modified_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "modified_at": {
+          "name": "modified_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "transactions_party_id_parties_id_fk": {
+          "name": "transactions_party_id_parties_id_fk",
+          "tableFrom": "transactions",
+          "tableTo": "parties",
+          "columnsFrom": [
+            "party_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
     }
   },
   "enums": {
+    "public.book_mode": {
+      "name": "book_mode",
+      "schema": "public",
+      "values": [
+        "metal",
+        "amount"
+      ]
+    },
     "public.booking_status": {
       "name": "booking_status",
       "schema": "public",
       "values": [
         "open",
         "partial",
-        "completed"
+        "delivered",
+        "cancelled"
+      ]
+    },
+    "public.line_kind": {
+      "name": "line_kind",
+      "schema": "public",
+      "values": [
+        "sale",
+        "sale_return",
+        "purchase",
+        "purchase_return"
       ]
     },
     "public.metal": {
@@ -343,38 +799,30 @@
         "silver"
       ]
     },
-    "public.payment_mode": {
-      "name": "payment_mode",
+    "public.move_dir": {
+      "name": "move_dir",
+      "schema": "public",
+      "values": [
+        "received",
+        "paid"
+      ]
+    },
+    "public.pay_mode": {
+      "name": "pay_mode",
       "schema": "public",
       "values": [
         "cash",
-        "bank",
-        "upi"
+        "bank"
       ]
     },
-    "public.rate_mode": {
-      "name": "rate_mode",
+    "public.trn_type": {
+      "name": "trn_type",
       "schema": "public",
       "values": [
-        "locked",
-        "float"
-      ]
-    },
-    "public.rate_unit": {
-      "name": "rate_unit",
-      "schema": "public",
-      "values": [
-        "per_10g",
-        "per_kg",
-        "per_g"
-      ]
-    },
-    "public.slip_type": {
-      "name": "slip_type",
-      "schema": "public",
-      "values": [
-        "gst",
-        "plain"
+        "booking",
+        "sales",
+        "purchase",
+        "expense"
       ]
     }
   },
