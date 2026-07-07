@@ -117,3 +117,25 @@ export async function requireSession(): Promise<void> {
   const session = await getSession();
   if (!session.authed) throw new Error("Not authenticated");
 }
+
+/** Set the current operator (staff) on the session. */
+export async function setSessionOperator(id: string, name: string): Promise<void> {
+  const session = await getSession();
+  session.operatorId = id;
+  session.operatorName = name;
+  await session.save();
+}
+
+/** The current operator, if picked. */
+export async function getSessionOperator(): Promise<{ id: string; name: string } | null> {
+  const session = await getSession();
+  return session.operatorId && session.operatorName
+    ? { id: session.operatorId, name: session.operatorName }
+    : null;
+}
+
+/** Operator name to stamp on created_by/modified_by. */
+export async function currentOperatorName(): Promise<string> {
+  const session = await getSession();
+  return session.operatorName ?? "—";
+}

@@ -17,7 +17,7 @@ export async function proxy(req: NextRequest) {
       const data = await unsealData<SessionData>(cookie, {
         password: SESSION_PASSWORD,
       });
-      authed = Boolean(data.authed);
+      authed = Boolean(data.authed && data.operatorId);
     } catch {
       authed = false;
     }

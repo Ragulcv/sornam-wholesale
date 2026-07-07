@@ -8,14 +8,12 @@ export default async function SettingsPage() {
   const s = await getSettings();
   return (
     <>
-      <PageHeader
-        title="Settings"
-        subtitle="Security, tax details, and default rates."
-      />
+      <PageHeader title="Settings" subtitle="Security, tax, and default rates." />
       <SettingsForm
         autoLogoffMinutes={s.autoLogoffMinutes}
         gstin={s.gstin ?? ""}
         taxPercent={s.taxPercent ?? "3"}
+        tdsPercent={s.tdsPercent ?? "0"}
         defaultGoldRate={s.defaultGoldRate ?? ""}
         defaultSilverRate={s.defaultSilverRate ?? ""}
       />

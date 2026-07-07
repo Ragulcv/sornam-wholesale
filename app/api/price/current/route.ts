@@ -1,5 +1,5 @@
 import { fetchLivePrices } from "@/lib/prices";
-import { updatePrices } from "@/lib/queries";
+import { updatePrices } from "@/lib/queries/settings";
 
 export const dynamic = "force-dynamic";
 

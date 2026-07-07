@@ -1,4 +1,4 @@
-import { requireAuth, getSettings } from "@/lib/auth";
+import { requireAuth, getSettings, currentOperatorName } from "@/lib/auth";
 import AppShell from "@/components/AppShell";
 
 export const dynamic = "force-dynamic";
@@ -9,8 +9,16 @@ export default async function AppLayout({
   children: React.ReactNode;
 }) {
   await requireAuth();
-  const settings = await getSettings();
+  const [settings, operatorName] = await Promise.all([
+    getSettings(),
+    currentOperatorName(),
+  ]);
   return (
-    <AppShell autoLogoffMinutes={settings.autoLogoffMinutes}>{children}</AppShell>
+    <AppShell
+      autoLogoffMinutes={settings.autoLogoffMinutes}
+      operatorName={operatorName}
+    >
+      {children}
+    </AppShell>
   );
 }

@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { paymentModeLabel, type PaymentMode } from "@/lib/format";
+import { payModeLabel } from "@/lib/format";
+import type { PayMode } from "@/lib/bullion";
 
 export function PageHeader({
   title,
@@ -83,18 +84,17 @@ export function StatusBadge({ status }: { status: string }) {
   );
 }
 
-const MODE_STYLES: Record<PaymentMode, string> = {
+const MODE_STYLES: Record<PayMode, string> = {
   cash: "bg-[#eaf6ef] text-pos border-[#cde9d8]",
   bank: "bg-[#eef4ff] text-info border-[#d6e3fb]",
-  upi: "bg-[#f3edff] text-[#5b3fa0] border-[#e0d4f7]",
 };
 
-export function ModeBadge({ mode }: { mode: PaymentMode }) {
+export function ModeBadge({ mode }: { mode: PayMode }) {
   return (
     <span
       className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-[11px] font-semibold ${MODE_STYLES[mode]}`}
     >
-      {paymentModeLabel[mode]}
+      {payModeLabel[mode]}
     </span>
   );
 }
