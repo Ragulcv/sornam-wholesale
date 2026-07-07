@@ -9,7 +9,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const browser = await puppeteer.launch({ executablePath: CHROME, headless: true, args: ["--no-sandbox"] });
 try {
   const page = await browser.newPage();
-  await page.goto(`${BASE}/lock`, { waitUntil: "networkidle2" });
+  await page.goto(`${BASE}/lock`, { waitUntil: "domcontentloaded" });
   for (const d of ["1", "2", "3", "4"])
     await page.evaluate((x) => [...document.querySelectorAll("button")].find((b) => b.textContent.trim() === x)?.click(), d);
   await page.evaluate(() => [...document.querySelectorAll("button")].find((b) => b.textContent.trim().startsWith("Unlock"))?.click());

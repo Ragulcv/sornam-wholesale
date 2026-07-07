@@ -12,6 +12,12 @@ import {
 } from "@/lib/auth";
 import { getOperator, listOperators } from "@/lib/queries/operators";
 import { updateSettings } from "@/lib/queries/settings";
+import {
+  createParty,
+  updateParty,
+  deleteParty,
+  bulkDeleteParties,
+} from "@/lib/queries/parties";
 
 export interface ActionState {
   error?: string;
@@ -73,6 +79,78 @@ export async function switchOperatorAction(): Promise<void> {
   session.operatorName = undefined;
   await session.save();
   redirect("/lock");
+}
+
+// ---- Parties ------------------------------------------------------------
+
+function partyFromForm(fd: FormData) {
+  return {
+    name: str(fd, "name"),
+    phone: str(fd, "phone") || null,
+    gstin: str(fd, "gstin") || null,
+    type: str(fd, "type") || "customer",
+    openingPureGold: numField(fd, "openingPureGold"),
+    openingPureSilver: numField(fd, "openingPureSilver"),
+    openingCash: numField(fd, "openingCash"),
+    notes: str(fd, "notes") || null,
+  };
+}
+
+export async function createPartyAction(
+  _prev: ActionState,
+  fd: FormData,
+): Promise<ActionState> {
+  await requireSession();
+  const data = partyFromForm(fd);
+  if (!data.name) return { error: "Name is required." };
+  await createParty(data);
+  revalidatePath("/parties");
+  return { ok: true };
+}
+
+export async function updatePartyAction(
+  _prev: ActionState,
+  fd: FormData,
+): Promise<ActionState> {
+  await requireSession();
+  const id = str(fd, "id");
+  const data = partyFromForm(fd);
+  if (!id || !data.name) return { error: "Name is required." };
+  await updateParty(id, data);
+  revalidatePath("/parties");
+  return { ok: true };
+}
+
+export async function savePartyAction(
+  _prev: ActionState,
+  fd: FormData,
+): Promise<ActionState> {
+  await requireSession();
+  const id = str(fd, "id");
+  const data = partyFromForm(fd);
+  if (!data.name) return { error: "Name is required." };
+  if (id) await updateParty(id, data);
+  else await createParty(data);
+  revalidatePath("/parties");
+  return { ok: true };
+}
+
+export async function deletePartyAction(
+  id: string,
+): Promise<{ ok: boolean; reason?: "has_activity" }> {
+  await requireSession();
+  const res = await deleteParty(id);
+  if (res.ok) revalidatePath("/parties");
+  return res;
+}
+
+export async function bulkDeletePartiesAction(
+  ids: string[],
+): Promise<{ deleted: number; skipped: number }> {
+  await requireSession();
+  const res = await bulkDeleteParties(ids);
+  revalidatePath("/parties");
+  return res;
 }
 
 // ---- Settings -----------------------------------------------------------
