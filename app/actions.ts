@@ -18,8 +18,14 @@ import {
   type MoveInput,
   type SettleInput,
 } from "@/lib/queries/transactions";
-import { buildSalesWhatsapp } from "@/lib/whatsapp";
-import type { Metal } from "@/lib/bullion";
+import { buildSalesWhatsapp, buildBookingWhatsapp, buildDeliveredWhatsapp } from "@/lib/whatsapp";
+import type { Metal, BookMode } from "@/lib/bullion";
+import {
+  createBooking,
+  deliverBooking,
+  deleteBooking,
+  bulkDeleteBookings,
+} from "@/lib/queries/bookings";
 import { getOperator, listOperators } from "@/lib/queries/operators";
 import { updateSettings } from "@/lib/queries/settings";
 import {
@@ -231,6 +237,98 @@ export async function deleteTransactionAction(id: string): Promise<void> {
   revalidatePath("/");
   revalidatePath("/history");
   revalidatePath("/stock");
+}
+
+// ---- Bookings -----------------------------------------------------------
+
+export interface BookingActionInput {
+  partyId: string;
+  partyName?: string;
+  partyPhone?: string;
+  metal: Metal;
+  bookMode: BookMode;
+  weightBooked?: number | null;
+  lockedRate?: number | null;
+  amount?: number | null;
+  advancePaid?: number;
+  notes?: string;
+}
+
+export async function createBookingAction(input: BookingActionInput): Promise<ActionState> {
+  await requireSession();
+  if (!input.partyId) return { error: "Pick a party." };
+  if (input.bookMode === "metal" && !(input.weightBooked && input.weightBooked > 0))
+    return { error: "Enter the weight to book." };
+  if (input.bookMode === "amount" && !(input.amount && input.amount > 0))
+    return { error: "Enter the amount to book." };
+
+  const operatorName = await currentOperatorName();
+  const { id, serialNo } = await createBooking({ ...input, operatorName });
+  revalidatePath("/bookings");
+  revalidatePath("/");
+
+  const whatsappUrl = input.partyPhone
+    ? buildBookingWhatsapp(input.partyPhone, {
+        partyName: input.partyName || "Customer",
+        metal: input.metal,
+        bookMode: input.bookMode,
+        weight: input.weightBooked ?? undefined,
+        rate: input.lockedRate ?? undefined,
+        amount: input.amount ?? undefined,
+        advance: input.advancePaid,
+      })
+    : null;
+  return { ok: true, id, serialNo, whatsappUrl };
+}
+
+export interface DeliverActionInput {
+  bookingId: string;
+  partyName?: string;
+  partyPhone?: string;
+  metal: Metal;
+  barRate?: number;
+  lines: LineInput[];
+  settlements: SettleInput[];
+}
+
+export async function deliverBookingAction(input: DeliverActionInput): Promise<ActionState> {
+  await requireSession();
+  const validLines = (input.lines || []).filter((l) => l.weight > 0);
+  if (validLines.length === 0) return { error: "Add the delivered items." };
+  const operatorName = await currentOperatorName();
+  const { txnId, serialNo } = await deliverBooking(input.bookingId, {
+    metal: input.metal,
+    barRate: input.barRate,
+    lines: validLines,
+    settlements: input.settlements || [],
+    operatorName,
+  });
+  revalidatePath("/bookings");
+  revalidatePath("/history");
+  revalidatePath("/stock");
+  revalidatePath("/");
+
+  const totalWeight = validLines.reduce((a, l) => a + l.weight, 0);
+  const whatsappUrl = input.partyPhone
+    ? buildDeliveredWhatsapp(input.partyPhone, {
+        partyName: input.partyName || "Customer",
+        metal: input.metal,
+        weight: totalWeight,
+      })
+    : null;
+  return { ok: true, txnId, serialNo, whatsappUrl };
+}
+
+export async function deleteBookingAction(id: string): Promise<void> {
+  await requireSession();
+  await deleteBooking(id);
+  revalidatePath("/bookings");
+}
+
+export async function bulkDeleteBookingsAction(ids: string[]): Promise<void> {
+  await requireSession();
+  await bulkDeleteBookings(ids);
+  revalidatePath("/bookings");
 }
 
 // ---- Settings -----------------------------------------------------------

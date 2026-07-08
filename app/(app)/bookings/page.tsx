@@ -1,10 +1,22 @@
-import { PageHeader, Card } from "@/components/ui";
+import { listBookings } from "@/lib/queries/bookings";
+import { listPartyOptions } from "@/lib/queries/parties";
+import { getSettings } from "@/lib/auth";
+import BookingsClient from "@/components/BookingsClient";
+
 export const dynamic = "force-dynamic";
-export default function Page() {
+
+export default async function BookingsPage() {
+  const [bookings, parties, s] = await Promise.all([
+    listBookings(),
+    listPartyOptions(),
+    getSettings(),
+  ]);
   return (
-    <>
-      <PageHeader title="Ubookings" subtitle="Being built in this rebuild." />
-      <Card className="p-8 text-center text-sm text-mute">This screen is coming up next in the rebuild.</Card>
-    </>
+    <BookingsClient
+      bookings={bookings}
+      parties={parties}
+      goldRate={s.defaultGoldRate ? parseFloat(s.defaultGoldRate) : null}
+      silverRate={s.defaultSilverRate ? parseFloat(s.defaultSilverRate) : null}
+    />
   );
 }
