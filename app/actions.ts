@@ -28,6 +28,7 @@ import {
 } from "@/lib/queries/bookings";
 import { getOperator, listOperators } from "@/lib/queries/operators";
 import { updateSettings } from "@/lib/queries/settings";
+import { updateStockOpening } from "@/lib/queries/stock";
 import {
   createParty,
   updateParty,
@@ -329,6 +330,21 @@ export async function bulkDeleteBookingsAction(ids: string[]): Promise<void> {
   await requireSession();
   await bulkDeleteBookings(ids);
   revalidatePath("/bookings");
+}
+
+// ---- Stock --------------------------------------------------------------
+
+export async function updateStockAction(_prev: ActionState, fd: FormData): Promise<ActionState> {
+  await requireSession();
+  await updateStockOpening({
+    openingPureGold: numField(fd, "openingPureGold"),
+    openingPureSilver: numField(fd, "openingPureSilver"),
+    openingCash: numField(fd, "openingCash"),
+    openingBank: numField(fd, "openingBank"),
+  });
+  revalidatePath("/stock");
+  revalidatePath("/");
+  return { ok: true };
 }
 
 // ---- Settings -----------------------------------------------------------
