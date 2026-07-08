@@ -39,7 +39,7 @@ export interface SettleInput {
   bankName?: string;
 }
 export interface TxnInput {
-  trnType: "sales" | "purchase";
+  trnType: "sales" | "purchase" | "expense";
   partyId: string | null;
   metal: Metal;
   txnDate?: string;

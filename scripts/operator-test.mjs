@@ -10,10 +10,14 @@ const browser = await puppeteer.launch({ executablePath: CHROME, headless: true,
 try {
   const page = await browser.newPage();
   await page.goto(`${BASE}/lock`, { waitUntil: "domcontentloaded" });
-  for (const d of ["1", "2", "3", "4"])
+  await sleep(1500); // hydrate
+  for (const d of ["1", "2", "3", "4"]) {
     await page.evaluate((x) => [...document.querySelectorAll("button")].find((b) => b.textContent.trim() === x)?.click(), d);
+    await sleep(90);
+  }
+  await sleep(300);
   await page.evaluate(() => [...document.querySelectorAll("button")].find((b) => b.textContent.trim().startsWith("Unlock"))?.click());
-  await sleep(1200);
+  await page.waitForFunction(() => [...document.querySelectorAll("button")].some((b) => b.textContent.trim() === "Ravi"), { timeout: 15000 }).catch(() => {});
 
   const txt = await page.evaluate(() => document.body.innerText);
   check("operator picker shows after PIN", txt.includes("Who's working") || txt.includes("Ravi"));

@@ -232,6 +232,42 @@ export async function createTransactionAction(
   return { ok: true, id, serialNo, whatsappUrl };
 }
 
+export interface ExpenseActionInput {
+  partyId?: string | null;
+  txnDate?: string;
+  cashPaid?: number;
+  bankPaid?: number;
+  bankName?: string;
+  narration?: string;
+}
+
+export async function createExpenseAction(input: ExpenseActionInput): Promise<ActionState> {
+  await requireSession();
+  const cash = input.cashPaid ?? 0;
+  const bank = input.bankPaid ?? 0;
+  if (cash <= 0 && bank <= 0) return { error: "Enter a cash or bank amount." };
+  const operatorName = await currentOperatorName();
+  const { serialNo } = await createTransaction({
+    trnType: "expense",
+    partyId: input.partyId ?? null,
+    metal: "gold",
+    txnDate: input.txnDate,
+    narration: input.narration,
+    lines: [],
+    movements: [],
+    settlements: [
+      { mode: "cash" as const, direction: "paid" as const, amount: cash },
+      { mode: "bank" as const, direction: "paid" as const, amount: bank, bankName: input.bankName },
+    ].filter((s) => s.amount > 0),
+    operatorName,
+  });
+  revalidatePath("/expenses");
+  revalidatePath("/history");
+  revalidatePath("/stock");
+  revalidatePath("/");
+  return { ok: true, serialNo };
+}
+
 export async function deleteTransactionAction(id: string): Promise<void> {
   await requireSession();
   await deleteTransaction(id);
