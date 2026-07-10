@@ -9,13 +9,14 @@ import { pure, lineAmount, round2, round3 } from "@/lib/bullion";
 import { fmtMoney, fmtWeight } from "@/lib/format";
 
 type PartyOpt = { id: string; name: string; phone: string | null };
-type Line = { particulars: string; weight: string; touch: string; rate: string };
+type Line = { particulars: string; weight: string; rate: string };
 type Move = { direction: "received" | "paid"; particulars: string; weight: string; touch: string; aTouch: string };
 
 const inp = "w-full rounded-md border border-line bg-cream px-2 py-1.5 text-sm outline-none focus:border-gold";
 const cell = "px-2 py-1 text-sm";
 const nn = (s: string) => parseFloat(s) || 0;
-const blankLine = (): Line => ({ particulars: "", weight: "", touch: "", rate: "" });
+const blankLine = (): Line => ({ particulars: "", weight: "", rate: "" });
+const PARTICULARS = ["Gold pure", "Silver pure", "Gold bar", "Silver bar", "Coin", "Old gold"];
 const blankMove = (): Move => ({ direction: "received", particulars: "", weight: "", touch: "", aTouch: "" });
 
 export default function EntryForm({
@@ -38,6 +39,8 @@ export default function EntryForm({
   const [txnDate, setTxnDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [barRate, setBarRate] = useState("");
   const [refNo, setRefNo] = useState("");
+  const [newPhone, setNewPhone] = useState("");
+  const [fetchingRate, setFetchingRate] = useState(false);
   const [lines, setLines] = useState<Line[]>([blankLine()]);
   const [moves, setMoves] = useState<Move[]>([]);
   const [cashRecd, setCashRecd] = useState("");
@@ -57,9 +60,10 @@ export default function EntryForm({
   }, [parties, partyQuery]);
 
   const computed = useMemo(() => {
+    // Pure gold/silver → pure content equals weight (touch 100).
     const rows = lines.map((l) => {
-      const w = nn(l.weight), t = nn(l.touch), r = nn(l.rate);
-      return { pure: pure(w, t), amount: lineAmount(w, r) };
+      const w = nn(l.weight), r = nn(l.rate);
+      return { pure: w, amount: lineAmount(w, r) };
     });
     const gross = round2(rows.reduce((a, r) => a + r.amount, 0));
     const totalWeight = round3(lines.reduce((a, l) => a + nn(l.weight), 0));
@@ -80,9 +84,20 @@ export default function EntryForm({
   function addMove() {
     setMoves((ms) => [...ms, blankMove()]);
   }
+  async function useLiveRate() {
+    setFetchingRate(true);
+    try {
+      const r = await fetch("/api/price/current");
+      const d = await r.json();
+      const val = metal === "gold" ? d.gold : d.silver;
+      if (d.ok && val != null) setBarRate(String(val));
+    } catch { /* ignore */ } finally {
+      setFetchingRate(false);
+    }
+  }
 
   function clearAll() {
-    setPartyId(null); setPartyQuery(""); setBarRate(""); setRefNo("");
+    setPartyId(null); setPartyQuery(""); setBarRate(""); setRefNo(""); setNewPhone("");
     setLines([blankLine()]); setMoves([]);
     setCashRecd(""); setCashPaid(""); setBankRecd(""); setBankPaid(""); setBankName("");
     setTdsManual(null); setResult(null); setError(null);
@@ -95,10 +110,12 @@ export default function EntryForm({
     setSaving(true);
     const kind = trnType === "sales" ? "sale" : "purchase";
     const input: TxnActionInput = {
-      trnType, partyId, partyName: party?.name, partyPhone: party?.phone ?? undefined,
+      trnType, partyId,
+      partyName: party ? party.name : partyQuery.trim() || undefined,
+      partyPhone: party ? party.phone ?? undefined : newPhone.trim() || undefined,
       metal, txnDate, barRate: nn(barRate) || undefined, refNo: refNo || undefined,
       tdsAmount: computed.tds,
-      lines: validLines.map((l) => ({ kind, particulars: l.particulars, weight: nn(l.weight), touch: nn(l.touch) || undefined, rate: nn(l.rate) })),
+      lines: validLines.map((l) => ({ kind, particulars: l.particulars, weight: nn(l.weight), touch: 100, rate: nn(l.rate) })),
       movements: moves.filter((m) => nn(m.weight) > 0).map((m) => ({ direction: m.direction, particulars: m.particulars, weight: nn(m.weight), touch: nn(m.touch) || undefined, aTouch: nn(m.aTouch) || undefined })),
       settlements: [
         { mode: "cash" as const, direction: "received" as const, amount: nn(cashRecd) },
@@ -151,10 +168,10 @@ export default function EntryForm({
             ))}
           </div>
         </div>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-6">
           <div className="relative col-span-2">
-            <span className="mb-1 block text-[11px] font-semibold uppercase text-mute">Party</span>
-            <input value={party ? party.name : partyQuery} onChange={(e) => { setPartyQuery(e.target.value); setPartyId(null); setShowParties(true); }} onFocus={() => setShowParties(true)} onBlur={() => setTimeout(() => setShowParties(false), 150)} className={inp} placeholder="Search party" autoComplete="off" />
+            <span className="mb-1 block text-[11px] font-semibold uppercase text-mute">Party — pick or type new</span>
+            <input value={party ? party.name : partyQuery} onChange={(e) => { setPartyQuery(e.target.value); setPartyId(null); setShowParties(true); }} onFocus={() => setShowParties(true)} onBlur={() => setTimeout(() => setShowParties(false), 150)} className={inp} placeholder="Search or add customer" autoComplete="off" />
             {showParties && matches.length > 0 && (
               <ul className="absolute z-20 mt-1 max-h-56 w-full overflow-auto rounded-lg border border-line bg-pearl py-1 shadow-lg">
                 {matches.map((p) => (
@@ -163,27 +180,34 @@ export default function EntryForm({
               </ul>
             )}
           </div>
+          <div><span className="mb-1 block text-[11px] font-semibold uppercase text-mute">Phone</span><input inputMode="tel" value={party ? party.phone ?? "" : newPhone} onChange={(e) => setNewPhone(e.target.value)} readOnly={!!party} className={inp} placeholder="if new" /></div>
           <div><span className="mb-1 block text-[11px] font-semibold uppercase text-mute">Date</span><input type="date" value={txnDate} onChange={(e) => setTxnDate(e.target.value)} className={inp} /></div>
-          <div><span className="mb-1 block text-[11px] font-semibold uppercase text-mute">Bar rate /g</span><input inputMode="decimal" value={barRate} onChange={(e) => setBarRate(e.target.value)} className={`${inp} num`} placeholder={String((metal === "gold" ? goldRate : silverRate) ?? "")} /></div>
+          <div>
+            <span className="mb-1 block text-[11px] font-semibold uppercase text-mute">Bar rate /g</span>
+            <div className="flex gap-1">
+              <input inputMode="decimal" value={barRate} onChange={(e) => setBarRate(e.target.value)} className={`${inp} num flex-1`} placeholder={String((metal === "gold" ? goldRate : silverRate) ?? "")} />
+              <button type="button" onClick={useLiveRate} disabled={fetchingRate} title="Use live MCX rate" className="flex-none rounded-md border border-gold/40 bg-[rgba(201,162,39,.08)] px-2 text-xs font-semibold text-gold-deep disabled:opacity-50">{fetchingRate ? "…" : "Live"}</button>
+            </div>
+          </div>
           <div><span className="mb-1 block text-[11px] font-semibold uppercase text-mute">Ref No</span><input value={refNo} onChange={(e) => setRefNo(e.target.value)} className={inp} /></div>
         </div>
       </Card>
 
-      {/* Line items */}
+      {/* Line items — pure metal, no touch */}
       <Card className="mb-4 overflow-x-auto">
-        <table className="w-full min-w-[640px] text-left">
+        <datalist id="particulars-opts">{PARTICULARS.map((p) => <option key={p} value={p} />)}</datalist>
+        <table className="w-full min-w-[560px] text-left">
           <thead className="border-b border-line2 bg-[#f3efe6] text-[11px] uppercase tracking-wider text-mute">
-            <tr><th className={cell}>#</th><th className={cell}>Particulars</th><th className={cell}>Weight (g)</th><th className={cell}>Touch</th><th className={cell}>Pure</th><th className={cell}>Rate /g</th><th className={cell}>Amount</th><th className={cell}></th></tr>
+            <tr><th className={cell}>#</th><th className={cell}>Particulars</th><th className={cell}>Weight (g)</th><th className={cell}>Pure</th><th className={cell}>Rate /g</th><th className={cell}>Amount</th><th className={cell}></th></tr>
           </thead>
           <tbody>
             {lines.map((l, i) => (
               <tr key={i} className="border-b border-line2">
                 <td className={`${cell} text-mute`}>{i + 1}</td>
-                <td className={cell}><input value={l.particulars} onChange={(e) => setLine(i, { particulars: e.target.value })} className={inp} /></td>
-                <td className={cell}><input inputMode="decimal" value={l.weight} onChange={(e) => setLine(i, { weight: e.target.value })} className={`${inp} num w-24`} /></td>
-                <td className={cell}><input inputMode="decimal" value={l.touch} onChange={(e) => setLine(i, { touch: e.target.value })} className={`${inp} num w-20`} /></td>
+                <td className={cell}><input list="particulars-opts" value={l.particulars} onChange={(e) => setLine(i, { particulars: e.target.value })} className={inp} placeholder="Gold pure" /></td>
+                <td className={cell}><input inputMode="decimal" value={l.weight} onChange={(e) => setLine(i, { weight: e.target.value })} className={`${inp} num w-28`} /></td>
                 <td className={`${cell} num text-mute`}>{fmtWeight(computed.rows[i]?.pure ?? 0)}</td>
-                <td className={cell}><input inputMode="decimal" value={l.rate} onChange={(e) => setLine(i, { rate: e.target.value })} className={`${inp} num w-24`} /></td>
+                <td className={cell}><input inputMode="decimal" value={l.rate} onChange={(e) => setLine(i, { rate: e.target.value })} className={`${inp} num w-28`} /></td>
                 <td className={`${cell} num font-semibold text-ink`}>{fmtMoney(computed.rows[i]?.amount ?? 0)}</td>
                 <td className={cell}>{lines.length > 1 && <button onClick={() => setLines((ls) => ls.filter((_, j) => j !== i))} className="text-xs text-neg">✕</button>}</td>
               </tr>
@@ -193,7 +217,6 @@ export default function EntryForm({
             <tr className="bg-[#faf7f0] font-semibold text-ink">
               <td className={cell} colSpan={2}><button onClick={addLine} className="rounded-md border border-line bg-pearl px-3 py-1 text-xs font-semibold hover:bg-cream">+ Add row</button></td>
               <td className={`${cell} num`}>{fmtWeight(computed.totalWeight)}</td>
-              <td></td>
               <td className={`${cell} num`}>{fmtWeight(computed.totalPure)}</td>
               <td className="text-right text-[11px] uppercase text-mute">Total</td>
               <td className={`${cell} num`}>{fmtMoney(computed.gross)}</td>

@@ -1,5 +1,5 @@
 import "server-only";
-import { desc, eq } from "drizzle-orm";
+import { desc, eq, inArray } from "drizzle-orm";
 import { db } from "../db";
 import {
   transactions,
@@ -193,6 +193,47 @@ export async function getTransaction(id: string): Promise<TransactionDetail | nu
 
 export async function deleteTransaction(id: string): Promise<void> {
   await db.delete(transactions).where(eq(transactions.id, id));
+}
+
+export async function bulkDeleteTransactions(ids: string[]): Promise<number> {
+  if (!ids.length) return 0;
+  await db.delete(transactions).where(inArray(transactions.id, ids));
+  return ids.length;
+}
+
+export interface CombinedBill {
+  partyName: string | null;
+  serialNos: number[];
+  lines: { particulars: string | null; weight: number; pure: number; rate: number; amount: number }[];
+  gross: number;
+  tds: number;
+  total: number;
+}
+
+/** Merge multiple transactions' line items into one combined bill. */
+export async function getCombinedBill(ids: string[]): Promise<CombinedBill | null> {
+  if (!ids.length) return null;
+  const txns = await db
+    .select({ t: transactions, pName: parties.name })
+    .from(transactions)
+    .leftJoin(parties, eq(transactions.partyId, parties.id))
+    .where(inArray(transactions.id, ids));
+  if (txns.length === 0) return null;
+  const lines = await db
+    .select()
+    .from(transactionLines)
+    .where(inArray(transactionLines.transactionId, ids));
+
+  const gross = round2(lines.reduce((a, l) => a + num(l.amount), 0));
+  const tds = round2(txns.reduce((a, r) => a + num(r.t.tdsAmount), 0));
+  return {
+    partyName: txns[0].pName,
+    serialNos: txns.map((r) => r.t.serialNo).sort((a, b) => a - b),
+    lines: lines.map((l) => ({ particulars: l.particulars, weight: num(l.weight), pure: num(l.pure), rate: num(l.rate), amount: num(l.amount) })),
+    gross,
+    tds,
+    total: round2(gross - tds),
+  };
 }
 
 export async function recentTransactions(limit = 10) {

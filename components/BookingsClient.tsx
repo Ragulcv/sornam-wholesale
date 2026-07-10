@@ -38,6 +38,20 @@ export default function BookingsClient({
   const [rate, setRate] = useState("");
   const [amount, setAmount] = useState("");
   const [advance, setAdvance] = useState("");
+  const [newPhone, setNewPhone] = useState("");
+  const [fetchingRate, setFetchingRate] = useState(false);
+
+  async function useLiveRate() {
+    setFetchingRate(true);
+    try {
+      const r = await fetch("/api/price/current");
+      const d = await r.json();
+      const val = metal === "gold" ? d.gold : d.silver;
+      if (d.ok && val != null) setRate(String(val));
+    } catch { /* ignore */ } finally {
+      setFetchingRate(false);
+    }
+  }
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<{ serialNo: number; whatsappUrl: string | null } | null>(null);
@@ -50,7 +64,7 @@ export default function BookingsClient({
   }, [parties, partyQuery]);
 
   function clearForm() {
-    setPartyId(null); setPartyQuery(""); setWeight(""); setRate(""); setAmount(""); setAdvance("");
+    setPartyId(null); setPartyQuery(""); setWeight(""); setRate(""); setAmount(""); setAdvance(""); setNewPhone("");
     setError(null);
   }
   function resetAll() {
@@ -60,10 +74,12 @@ export default function BookingsClient({
 
   async function save() {
     setError(null);
-    if (!partyId) { setError("Pick a party."); return; }
+    if (!partyId && !partyQuery.trim()) { setError("Pick or type a customer."); return; }
     setSaving(true);
     const input: BookingActionInput = {
-      partyId, partyName: party?.name, partyPhone: party?.phone ?? undefined,
+      partyId,
+      partyName: party ? party.name : partyQuery.trim() || undefined,
+      partyPhone: party ? party.phone ?? undefined : newPhone.trim() || undefined,
       metal, bookMode,
       weightBooked: bookMode === "metal" ? nn(weight) : null,
       lockedRate: bookMode === "metal" ? nn(rate) : null,
@@ -105,18 +121,24 @@ export default function BookingsClient({
         </div>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <div className="relative col-span-2">
-            <span className="mb-1 block text-[11px] font-semibold uppercase text-mute">Party</span>
-            <input value={party ? party.name : partyQuery} onChange={(e) => { setPartyQuery(e.target.value); setPartyId(null); setShowParties(true); }} onFocus={() => setShowParties(true)} onBlur={() => setTimeout(() => setShowParties(false), 150)} className={inp} placeholder="Search party" autoComplete="off" />
+            <span className="mb-1 block text-[11px] font-semibold uppercase text-mute">Party — pick or type new</span>
+            <input value={party ? party.name : partyQuery} onChange={(e) => { setPartyQuery(e.target.value); setPartyId(null); setShowParties(true); }} onFocus={() => setShowParties(true)} onBlur={() => setTimeout(() => setShowParties(false), 150)} className={inp} placeholder="Search or add customer" autoComplete="off" />
             {showParties && matches.length > 0 && (
               <ul className="absolute z-20 mt-1 max-h-56 w-full overflow-auto rounded-lg border border-line bg-pearl py-1 shadow-lg">
                 {matches.map((p) => (<li key={p.id}><button type="button" onMouseDown={(e) => { e.preventDefault(); setPartyId(p.id); setPartyQuery(p.name); setShowParties(false); }} className="flex w-full justify-between px-3 py-1.5 text-left text-sm hover:bg-cream"><span>{p.name}</span><span className="text-xs text-mute">{p.phone}</span></button></li>))}
               </ul>
             )}
           </div>
+          <div className="col-span-2"><span className="mb-1 block text-[11px] font-semibold uppercase text-mute">Phone</span><input inputMode="tel" value={party ? party.phone ?? "" : newPhone} onChange={(e) => setNewPhone(e.target.value)} readOnly={!!party} className={inp} placeholder="if new customer" /></div>
           {bookMode === "metal" ? (
             <>
               <div><span className="mb-1 block text-[11px] font-semibold uppercase text-mute">Weight (g)</span><input inputMode="decimal" value={weight} onChange={(e) => setWeight(e.target.value)} className={`${inp} num`} /></div>
-              <div><span className="mb-1 block text-[11px] font-semibold uppercase text-mute">Locked rate /g</span><input inputMode="decimal" value={rate} onChange={(e) => setRate(e.target.value)} className={`${inp} num`} placeholder={String((metal === "gold" ? goldRate : silverRate) ?? "")} /></div>
+              <div><span className="mb-1 block text-[11px] font-semibold uppercase text-mute">Locked rate /g</span>
+                <div className="flex gap-1">
+                  <input inputMode="decimal" value={rate} onChange={(e) => setRate(e.target.value)} className={`${inp} num flex-1`} placeholder={String((metal === "gold" ? goldRate : silverRate) ?? "")} />
+                  <button type="button" onClick={useLiveRate} disabled={fetchingRate} className="flex-none rounded-md border border-gold/40 bg-[rgba(201,162,39,.08)] px-2 text-xs font-semibold text-gold-deep disabled:opacity-50">{fetchingRate ? "…" : "Live"}</button>
+                </div>
+              </div>
             </>
           ) : (
             <div className="col-span-2"><span className="mb-1 block text-[11px] font-semibold uppercase text-mute">Amount (₹)</span><input inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} className={`${inp} num`} /></div>

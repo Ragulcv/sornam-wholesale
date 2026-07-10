@@ -27,7 +27,7 @@ try {
   // pick party (Karthik Bullion — has phone)
   await page.evaluate((setStr) => {
     const set = eval(setStr);
-    set(document.querySelector('input[placeholder="Search party"]'), "Karthik");
+    set(document.querySelector('input[placeholder="Search or add customer"]'), "Karthik");
   }, REACT_SET);
   await sleep(400);
   await page.evaluate(() => {
@@ -36,13 +36,12 @@ try {
   });
   await sleep(300);
 
-  // fill first line: weight 100, touch 99.5, rate 7250
+  // fill first line: weight 100, rate 7250 (no touch — pure gold)
   await page.evaluate((setStr) => {
     const set = eval(setStr);
     const inputs = document.querySelectorAll("tbody tr input");
     set(inputs[1], "100");   // weight
-    set(inputs[2], "99.5");  // touch
-    set(inputs[3], "7250");  // rate
+    set(inputs[2], "7250");  // rate
   }, REACT_SET);
   await sleep(300);
 
@@ -72,7 +71,7 @@ try {
 
   const line = (await sql`select weight::float w, touch::float t, pure::float p, rate::float r, amount::float a from transaction_lines where transaction_id=${t.id}`)[0];
   check("line amount = weight × rate (100×7250=725000)", line && line.a === 725000);
-  check("line pure = weight × touch/100 (100×99.5/100=99.5)", line && line.p === 99.5);
+  check("line pure = weight (pure gold → 100)", line && line.p === 100);
 
   const setls = await sql`select mode, direction, amount::float a from settlements where transaction_id=${t.id} order by mode`;
   const cash = setls.find((s) => s.mode === "cash");

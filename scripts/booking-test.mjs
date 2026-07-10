@@ -12,7 +12,7 @@ const REACT_SET = `(el, value) => { const s = Object.getOwnPropertyDescriptor(wi
 
 const browser = await puppeteer.launch({ executablePath: CHROME, headless: true, args: ["--no-sandbox"] });
 async function pickParty(page, name) {
-  await page.evaluate((setStr) => { const set = eval(setStr); set(document.querySelector('input[placeholder="Search party"]'), "Kar"); }, REACT_SET);
+  await page.evaluate((setStr) => { const set = eval(setStr); set(document.querySelector('input[placeholder="Search or add customer"]'), "Kar"); }, REACT_SET);
   await sleep(400);
   await page.evaluate((nm) => { const b = [...document.querySelectorAll("ul button")].find((x) => x.textContent.includes(nm)); b?.dispatchEvent(new MouseEvent("mousedown", { bubbles: true })); }, name);
   await sleep(300);

@@ -3,7 +3,8 @@ import { getStock } from "@/lib/queries/stock";
 import { listHistory } from "@/lib/queries/history";
 import { getSettings } from "@/lib/auth";
 import { PageHeader, Card, StatTile } from "@/components/ui";
-import { fmtMoney, fmtWeight, fmtRate, fmtDate, metalLabel } from "@/lib/format";
+import { fmtMoney, fmtWeight, fmtDate, metalLabel } from "@/lib/format";
+import LivePriceStrip from "@/components/LivePriceStrip";
 
 export const dynamic = "force-dynamic";
 
@@ -25,13 +26,10 @@ export default async function TodayPage() {
         action={<Link href="/entry" className="gold-grad rounded-xl px-4 py-2.5 text-sm font-bold text-onyx">+ New entry</Link>}
       />
 
-      {(s.defaultGoldRate || s.defaultSilverRate) && (
-        <Card className="mb-4 flex flex-wrap items-center gap-x-6 gap-y-1 px-4 py-3">
-          <span className="text-[11px] font-semibold uppercase tracking-wider text-mute">Rates</span>
-          {s.defaultGoldRate && <span className="text-sm text-ink">Gold <span className="num font-semibold">{fmtRate(s.defaultGoldRate)}</span>/g</span>}
-          {s.defaultSilverRate && <span className="text-sm text-ink">Silver <span className="num font-semibold">{fmtRate(s.defaultSilverRate)}</span>/g</span>}
-        </Card>
-      )}
+      <LivePriceStrip
+        initialGold={s.defaultGoldRate ? parseFloat(s.defaultGoldRate) : null}
+        initialSilver={s.defaultSilverRate ? parseFloat(s.defaultSilverRate) : null}
+      />
 
       <div className="mb-3 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <StatTile label="Gold in stock" value={fmtWeight(stock.currentPureGold)} accent />

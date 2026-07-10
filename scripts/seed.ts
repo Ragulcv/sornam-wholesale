@@ -34,8 +34,8 @@ async function main() {
     gstin: "33ABCDE1234F1Z5",
     taxPercent: "3",
     tdsPercent: "0.1",
-    defaultGoldRate: "7250",
-    defaultSilverRate: "92",
+    defaultGoldRate: "14740",
+    defaultSilverRate: "227.65",
     priceUpdatedAt: new Date(),
   });
 

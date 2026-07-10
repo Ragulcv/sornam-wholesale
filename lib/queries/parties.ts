@@ -1,5 +1,5 @@
 import "server-only";
-import { asc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import { db } from "../db";
 import { parties, transactions, bookings } from "../db/schema";
 
@@ -81,6 +81,27 @@ export async function createParty(data: {
     })
     .returning({ id: parties.id });
   return row.id;
+}
+
+/** Reuse a party by case-insensitive name (+ phone), else create one. */
+export async function findOrCreateParty(
+  name: string,
+  phone?: string | null,
+): Promise<string> {
+  const trimmed = name.trim();
+  if (!trimmed) throw new Error("Party name required");
+  const existing = await db
+    .select({ id: parties.id })
+    .from(parties)
+    .where(
+      and(
+        sql`lower(${parties.name}) = lower(${trimmed})`,
+        phone && phone.trim() ? eq(parties.phone, phone.trim()) : sql`true`,
+      ),
+    )
+    .limit(1);
+  if (existing[0]) return existing[0].id;
+  return createParty({ name: trimmed, phone });
 }
 
 export async function updateParty(

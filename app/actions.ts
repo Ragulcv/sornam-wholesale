@@ -14,6 +14,7 @@ import {
 import {
   createTransaction,
   deleteTransaction,
+  bulkDeleteTransactions,
   type LineInput,
   type MoveInput,
   type SettleInput,
@@ -34,6 +35,7 @@ import {
   updateParty,
   deleteParty,
   bulkDeleteParties,
+  findOrCreateParty,
 } from "@/lib/queries/parties";
 
 export interface ActionState {
@@ -197,10 +199,15 @@ export async function createTransactionAction(
   if (validLines.length === 0) return { error: "Add at least one line item." };
   if (!input.metal) return { error: "Pick a metal." };
 
+  // Auto-create the party if a new name was typed instead of picked.
+  let partyId = input.partyId;
+  if (!partyId && input.partyName?.trim())
+    partyId = await findOrCreateParty(input.partyName, input.partyPhone);
+
   const operatorName = await currentOperatorName();
   const { id, serialNo } = await createTransaction({
     trnType: input.trnType,
-    partyId: input.partyId,
+    partyId,
     metal: input.metal,
     txnDate: input.txnDate,
     barRate: input.barRate,
@@ -276,10 +283,18 @@ export async function deleteTransactionAction(id: string): Promise<void> {
   revalidatePath("/stock");
 }
 
+export async function bulkDeleteTransactionsAction(ids: string[]): Promise<void> {
+  await requireSession();
+  await bulkDeleteTransactions(ids);
+  revalidatePath("/");
+  revalidatePath("/history");
+  revalidatePath("/stock");
+}
+
 // ---- Bookings -----------------------------------------------------------
 
 export interface BookingActionInput {
-  partyId: string;
+  partyId?: string | null;
   partyName?: string;
   partyPhone?: string;
   metal: Metal;
@@ -293,14 +308,17 @@ export interface BookingActionInput {
 
 export async function createBookingAction(input: BookingActionInput): Promise<ActionState> {
   await requireSession();
-  if (!input.partyId) return { error: "Pick a party." };
+  let partyId = input.partyId;
+  if (!partyId && input.partyName?.trim())
+    partyId = await findOrCreateParty(input.partyName, input.partyPhone);
+  if (!partyId) return { error: "Pick or type a customer." };
   if (input.bookMode === "metal" && !(input.weightBooked && input.weightBooked > 0))
     return { error: "Enter the weight to book." };
   if (input.bookMode === "amount" && !(input.amount && input.amount > 0))
     return { error: "Enter the amount to book." };
 
   const operatorName = await currentOperatorName();
-  const { id, serialNo } = await createBooking({ ...input, operatorName });
+  const { id, serialNo } = await createBooking({ ...input, partyId, operatorName });
   revalidatePath("/bookings");
   revalidatePath("/");
 
