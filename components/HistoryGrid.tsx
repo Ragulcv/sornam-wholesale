@@ -18,6 +18,7 @@ export default function HistoryGrid({ rows }: { rows: HistoryRow[] }) {
   const ids = rows.map((r) => r.id);
   const [confirming, setConfirming] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [multiParty, setMultiParty] = useState<{ ids: string; parties: string[] } | null>(null);
   const allChecked = rows.length > 0 && sel.count === rows.length;
 
   async function bulkDelete() {
@@ -29,7 +30,13 @@ export default function HistoryGrid({ rows }: { rows: HistoryRow[] }) {
     router.refresh();
   }
   function createBill() {
-    router.push(`/history/bill?ids=${[...sel.selected].join(",")}`);
+    const ids = [...sel.selected].join(",");
+    const partyNames = [...new Set(rows.filter((r) => sel.isSelected(r.id)).map((r) => r.partyName ?? "—"))];
+    if (partyNames.length <= 1) {
+      router.push(`/history/bill?ids=${ids}`);
+    } else {
+      setMultiParty({ ids, parties: partyNames });
+    }
   }
 
   return (
@@ -87,6 +94,27 @@ export default function HistoryGrid({ rows }: { rows: HistoryRow[] }) {
           </tbody>
         </table>
       </Card>
+
+      {multiParty && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setMultiParty(null)}>
+          <div className="w-full max-w-sm rounded-2xl bg-pearl p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <h3 className="font-serif text-xl font-semibold text-neg">Combining multiple parties</h3>
+            <p className="mt-2 text-sm text-mid">
+              You are trying to combine transactions from <b>{multiParty.parties.length} different parties</b> ({multiParty.parties.join(", ")}). Which party should this single bill be billed to?
+            </p>
+            <div className="mt-4 flex flex-col gap-2">
+              {multiParty.parties.map((p) => (
+                <button key={p} onClick={() => router.push(`/history/bill?ids=${multiParty.ids}&billTo=${encodeURIComponent(p)}`)} className="rounded-xl border border-line bg-cream px-4 py-2.5 text-sm font-semibold text-ink hover:bg-line2">
+                  Bill to {p}
+                </button>
+              ))}
+              <button onClick={() => setMultiParty(null)} className="rounded-xl border border-line px-4 py-2.5 text-sm font-semibold text-mid hover:bg-cream">
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

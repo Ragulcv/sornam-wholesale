@@ -12,12 +12,13 @@ const td = "px-2 py-1.5 text-[13px]";
 export default async function CombinedBillPage({
   searchParams,
 }: {
-  searchParams: Promise<{ ids?: string }>;
+  searchParams: Promise<{ ids?: string; billTo?: string }>;
 }) {
-  const { ids } = await searchParams;
+  const { ids, billTo } = await searchParams;
   const idList = (ids ?? "").split(",").filter(Boolean);
   const bill = await getCombinedBill(idList);
   if (!bill) notFound();
+  const billParty = billTo?.trim() || bill.partyName;
 
   return (
     <div className="mx-auto max-w-3xl">
@@ -31,7 +32,10 @@ export default async function CombinedBillPage({
           <div className="mb-3 flex items-baseline justify-between border-b border-line pb-3">
             <div>
               <span className="text-xs uppercase tracking-widest text-mute">Combined bill</span>
-              <div className="font-serif text-xl font-bold text-ink">{bill.partyName ?? "—"}</div>
+              <div className="font-serif text-xl font-bold text-ink">{billParty ?? "—"}</div>
+              {billTo && billTo.trim() && billTo.trim() !== bill.partyName && (
+                <div className="text-[11px] text-mute">combined across multiple parties</div>
+              )}
             </div>
             <div className="text-right text-sm text-mute">
               <div>{fmtDate(new Date())}</div>

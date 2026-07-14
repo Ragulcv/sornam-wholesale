@@ -6,6 +6,12 @@ import { round2, round3 } from "../bullion";
 
 const num = (v: string | null): number => (v == null ? 0 : parseFloat(v));
 
+export interface Balances {
+  pureGold: number;
+  pureSilver: number;
+  cash: number;
+  bank: number;
+}
 export interface StockView {
   openingPureGold: number;
   openingPureSilver: number;
@@ -15,6 +21,9 @@ export interface StockView {
   currentPureSilver: number;
   currentCash: number;
   currentBank: number;
+  // Day-wise: start-of-today (opening) and end-of-today (closing) balances.
+  todayOpen: Balances;
+  todayClose: Balances;
 }
 
 async function ensureStock() {
@@ -27,45 +36,67 @@ async function ensureStock() {
 export async function getStock(): Promise<StockView> {
   const s = await ensureStock();
   const [txns, lines, moves, setls] = await Promise.all([
-    db.select({ id: transactions.id, metal: transactions.metal }).from(transactions),
+    db.select({ id: transactions.id, metal: transactions.metal, txnDate: transactions.txnDate }).from(transactions),
     db.select({ transactionId: transactionLines.transactionId, kind: transactionLines.kind, pure: transactionLines.pure }).from(transactionLines),
     db.select({ transactionId: metalMovements.transactionId, direction: metalMovements.direction, pure: metalMovements.pure }).from(metalMovements),
-    db.select({ mode: settlements.mode, direction: settlements.direction, amount: settlements.amount }).from(settlements),
+    db.select({ transactionId: settlements.transactionId, mode: settlements.mode, direction: settlements.direction, amount: settlements.amount }).from(settlements),
   ]);
   const metalOf = new Map(txns.map((t) => [t.id, t.metal]));
+  const dateOf = new Map(txns.map((t) => [t.id, t.txnDate]));
 
-  let dGold = 0, dSilver = 0;
-  const addMetal = (m: string | undefined, delta: number) => {
-    if (m === "gold") dGold += delta;
-    else if (m === "silver") dSilver += delta;
+  const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
+  const todayEnd = new Date(); todayEnd.setHours(23, 59, 59, 999);
+  // buckets: metal (gold/silver pure) + cash + bank, split by before-today / today
+  const z = () => ({ g: 0, s: 0, cash: 0, bank: 0 });
+  const before = z(), today = z(), rest = z(); // rest = future-dated
+  const bucketFor = (id: string) => {
+    const d = dateOf.get(id);
+    if (!d) return today;
+    return d < todayStart ? before : d <= todayEnd ? today : rest;
   };
+  const addMetal = (b: ReturnType<typeof z>, m: string | undefined, delta: number) => {
+    if (m === "gold") b.g += delta;
+    else if (m === "silver") b.s += delta;
+  };
+
   for (const l of lines) {
-    const p = num(l.pure);
-    // metal in (increase): purchase / sale_return ; metal out (decrease): sale / purchase_return
     const sign = l.kind === "purchase" || l.kind === "sale_return" ? 1 : -1;
-    addMetal(metalOf.get(l.transactionId), sign * p);
+    addMetal(bucketFor(l.transactionId), metalOf.get(l.transactionId), sign * num(l.pure));
   }
   for (const mv of moves) {
-    addMetal(metalOf.get(mv.transactionId), (mv.direction === "received" ? 1 : -1) * num(mv.pure));
+    addMetal(bucketFor(mv.transactionId), metalOf.get(mv.transactionId), (mv.direction === "received" ? 1 : -1) * num(mv.pure));
   }
-
-  let dCash = 0, dBank = 0;
   for (const st of setls) {
+    const b = bucketFor(st.transactionId);
     const amt = num(st.amount) * (st.direction === "received" ? 1 : -1);
-    if (st.mode === "cash") dCash += amt;
-    else dBank += amt;
+    if (st.mode === "cash") b.cash += amt; else b.bank += amt;
   }
 
   const og = num(s.openingPureGold), os = num(s.openingPureSilver), oc = num(s.openingCash), ob = num(s.openingBank);
+  const bal = (extra: ReturnType<typeof z>[]): Balances => {
+    const sum = (k: "g" | "s" | "cash" | "bank") => extra.reduce((a, e) => a + e[k], 0);
+    return {
+      pureGold: round3(og + sum("g")),
+      pureSilver: round3(os + sum("s")),
+      cash: round2(oc + sum("cash")),
+      bank: round2(ob + sum("bank")),
+    };
+  };
+  const todayOpen = bal([before]);
+  const todayClose = bal([before, today]);
+  const current = bal([before, today, rest]);
+
   return {
     openingPureGold: og,
     openingPureSilver: os,
     openingCash: oc,
     openingBank: ob,
-    currentPureGold: round3(og + dGold),
-    currentPureSilver: round3(os + dSilver),
-    currentCash: round2(oc + dCash),
-    currentBank: round2(ob + dBank),
+    currentPureGold: current.pureGold,
+    currentPureSilver: current.pureSilver,
+    currentCash: current.cash,
+    currentBank: current.bank,
+    todayOpen,
+    todayClose,
   };
 }
 

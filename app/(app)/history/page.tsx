@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { listHistory } from "@/lib/queries/history";
+import { listPartyOptions } from "@/lib/queries/parties";
 import { PageHeader, Card } from "@/components/ui";
 import { fmtMoney } from "@/lib/format";
 import HistoryGrid from "@/components/HistoryGrid";
@@ -16,7 +17,10 @@ export default async function HistoryPage({
   const sp = await searchParams;
   const typeParam = sp.type ? (Array.isArray(sp.type) ? sp.type : [sp.type]) : [];
   const trnTypes = TYPES.filter((t) => typeParam.includes(t)) as ("sales" | "purchase" | "expense")[];
-  const rows = await listHistory({ from: sp.from, to: sp.to, trnTypes, search: sp.q });
+  const [rows, parties] = await Promise.all([
+    listHistory({ from: sp.from, to: sp.to, trnTypes, search: sp.q }),
+    listPartyOptions(),
+  ]);
   const totalValue = rows.reduce((a, r) => a + r.value, 0);
 
   const exportUrl =
@@ -43,7 +47,10 @@ export default async function HistoryPage({
               ))}
             </div>
           </div>
-          <label className="text-xs text-mute">Party<input name="q" defaultValue={sp.q} placeholder="search party" className="mt-1 block rounded-md border border-line bg-cream px-2 py-1.5 text-sm" /></label>
+          <label className="text-xs text-mute">Party
+            <input name="q" defaultValue={sp.q} list="party-suggest" autoComplete="off" placeholder="type to suggest" className="mt-1 block rounded-md border border-line bg-cream px-2 py-1.5 text-sm" />
+            <datalist id="party-suggest">{parties.map((p) => <option key={p.id} value={p.name} />)}</datalist>
+          </label>
           <button className="gold-grad rounded-md px-4 py-1.5 text-sm font-bold text-onyx">Go</button>
           <Link href="/history" className="rounded-md border border-line px-3 py-1.5 text-sm text-mid hover:bg-cream">Reset</Link>
         </form>

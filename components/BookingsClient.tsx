@@ -22,11 +22,13 @@ export default function BookingsClient({
   parties,
   goldRate,
   silverRate,
+  chart,
 }: {
   bookings: BookingRow[];
   parties: PartyOpt[];
   goldRate: number | null;
   silverRate: number | null;
+  chart?: React.ReactNode;
 }) {
   const router = useRouter();
   const [metal, setMetal] = useState<"gold" | "silver">("gold");
@@ -95,6 +97,7 @@ export default function BookingsClient({
   return (
     <>
       <PageHeader title="Bookings" subtitle="Reserve metal or amount; deliver later." />
+      {chart}
       <Toolbar items={[{ label: "Add", onClick: resetAll, primary: true }, { label: "Save", onClick: save, disabled: saving }, { label: "Cancel", onClick: resetAll }]} />
 
       {result && (
