@@ -47,6 +47,22 @@ try {
   const t2 = await body(page);
   check("point-in-time lookup returns a per-gram price", /per gram/i.test(t2) && /nearest recorded tick/i.test(t2));
 
+  // availability hint shows the earliest recorded time
+  check("shows the 'available from' range hint", /recorded prices available from/i.test(t2));
+
+  // out-of-range lookup: pick a time before the feed started → informative msg
+  const RS = `(el, value) => { const s = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value").set; s.call(el, value); el.dispatchEvent(new Event("input", { bubbles: true })); }`;
+  await page.evaluate((s) => {
+    const set = eval(s);
+    const inp = [...document.querySelectorAll('input[type="datetime-local"]')][0];
+    set(inp, "2026-07-01T10:00");
+  }, RS);
+  await sleep(300);
+  await clickText(page, "Get price");
+  await sleep(2500);
+  const t3 = await body(page);
+  check("out-of-range lookup explains when data starts", /feed has data from/i.test(t3));
+
   const passed = results.filter(Boolean).length;
   console.log(`\n${passed}/${results.length} checks passed`);
   process.exitCode = passed === results.length ? 0 : 1;

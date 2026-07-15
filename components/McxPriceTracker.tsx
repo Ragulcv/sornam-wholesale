@@ -259,6 +259,25 @@ export default function McxPriceTracker({ initialCurrent }: { initialCurrent: Cu
   // load on mount + whenever metal changes
   useEffect(() => { loadHistory(); /* eslint-disable-next-line */ }, [metal]);
 
+  // Earliest recorded tick for this metal — bounds the pickers and tells the
+  // user the feed has no history before it started running (no backfill).
+  const [earliest, setEarliest] = useState<string | null>(null);
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const qs = new URLSearchParams({ symbol: SYM[metal], to: new Date().toISOString().replace(/\.\d{3}Z$/, "Z") });
+        const r = await fetch(`/api/mcx/history?${qs.toString()}`, { cache: "no-store" });
+        if (!r.ok) return;
+        const data = await r.json();
+        const list: HistRow[] = data.rows || [];
+        if (alive) setEarliest(list.length ? list[0].fetched_at : null);
+      } catch { /* ignore */ }
+    })();
+    return () => { alive = false; };
+  }, [metal]);
+  const earliestLocal = earliest ? toLocalInput(new Date(earliest)) : undefined;
+
   // ---- point-in-time lookup ----
   const [atTime, setAtTime] = useState(toLocalInput(now));
   const [lookup, setLookup] = useState<{ row: HistRow; metal: Metal; asked: string } | null>(null);
@@ -284,20 +303,26 @@ export default function McxPriceTracker({ initialCurrent }: { initialCurrent: Cu
       if (!r.ok) throw new Error(`feed responded ${r.status}`);
       const data = await r.json();
       const list: HistRow[] = data.rows || [];
-      if (!list.length) throw new Error("no price recorded at/before that time yet");
+      if (!list.length) {
+        throw new Error(
+          earliest
+            ? `No price recorded that far back. The feed has data from ${timeLabel(earliest)} onward — pick a time after that.`
+            : "No prices recorded yet — the feed just started; try again shortly."
+        );
+      }
       setLookup({ row: list[list.length - 1], metal, asked: atTime });
     } catch (e) {
       setLookupErr(e instanceof Error ? e.message : "lookup failed");
     } finally {
       setLookupLoading(false);
     }
-  }, [atTime, metal]);
+  }, [atTime, metal, earliest]);
 
   const g = current?.gold, s = current?.silver;
 
   return (
     <>
-      <PageHeader title="MCX Price Tracker" subtitle="Live gold & silver in INR, calibrated to the IBJA benchmark. Pick any date & time to see the per-gram rate then." />
+      <PageHeader title="MCX Price Tracker" subtitle="Live gold & silver in INR, calibrated to the IBJA benchmark. Look up the per-gram rate at any time since the feed started." />
 
       {feedDown && (
         <div className="mb-4 rounded-lg bg-[#fdecea] px-3 py-2 text-sm font-medium text-neg">
@@ -351,11 +376,16 @@ export default function McxPriceTracker({ initialCurrent }: { initialCurrent: Cu
             </select>
           </label>
           <label className="text-xs text-mute">Date &amp; time
-            <input type="datetime-local" value={atTime} max={toLocalInput(now)} onChange={(e) => setAtTime(e.target.value)} className="mt-1 block rounded-md border border-line bg-cream px-2 py-1.5 text-sm" />
+            <input type="datetime-local" value={atTime} min={earliestLocal} max={toLocalInput(now)} onChange={(e) => setAtTime(e.target.value)} className="mt-1 block rounded-md border border-line bg-cream px-2 py-1.5 text-sm" />
           </label>
           <button onClick={doLookup} disabled={lookupLoading} className="rounded-lg bg-onyx px-4 py-2 text-sm font-semibold text-gold-hi disabled:opacity-50">
             {lookupLoading ? "Looking up…" : "Get price"}
           </button>
+        </div>
+        <div className="mt-2 text-[11px] text-mute">
+          {earliest
+            ? `Recorded prices available from ${timeLabel(earliest)} onward. The feed keeps no history before it started.`
+            : "The feed is warming up — recorded history will appear shortly."}
         </div>
         {lookupErr && <div className="mt-3 text-sm text-neg">{lookupErr}</div>}
         {lookup && (
@@ -386,7 +416,7 @@ export default function McxPriceTracker({ initialCurrent }: { initialCurrent: Cu
             {metal === "gold" ? "Gold" : "Silver"} rate history
           </div>
           <label className="text-xs text-mute">From
-            <input type="datetime-local" value={from} max={to} onChange={(e) => setFrom(e.target.value)} className="mt-1 block rounded-md border border-line bg-cream px-2 py-1.5 text-sm" />
+            <input type="datetime-local" value={from} min={earliestLocal} max={to} onChange={(e) => setFrom(e.target.value)} className="mt-1 block rounded-md border border-line bg-cream px-2 py-1.5 text-sm" />
           </label>
           <label className="text-xs text-mute">To
             <input type="datetime-local" value={to} min={from} max={toLocalInput(now)} onChange={(e) => setTo(e.target.value)} className="mt-1 block rounded-md border border-line bg-cream px-2 py-1.5 text-sm" />
