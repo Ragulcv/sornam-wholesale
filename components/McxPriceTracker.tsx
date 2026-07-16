@@ -318,7 +318,26 @@ export default function McxPriceTracker({ initialCurrent }: { initialCurrent: Cu
     }
   }, [atTime, metal, earliest]);
 
-  const g = current?.gold, s = current?.silver;
+  // Cosmetic per-second flicker between the 30s real refreshes, so the board
+  // shimmers like a live bullion ticker. Derived from the last real value each
+  // tick (never compounds), so the display can't drift from reality.
+  const [flick, setFlick] = useState(0.5);
+  const [dir, setDir] = useState<1 | -1 | 0>(0);
+  useEffect(() => {
+    let prev = 0.5;
+    const id = setInterval(() => {
+      const next = Math.random();
+      setDir(next > prev ? 1 : next < prev ? -1 : 0);
+      prev = next;
+      setFlick(next);
+    }, 1000);
+    return () => clearInterval(id);
+  }, []);
+  const jf = 1 + (flick - 0.5) * 0.0005; // ±0.025% shimmer around the real rate
+  const g0 = current?.gold, s0 = current?.silver;
+  const g = g0 ? { per_gram: g0.per_gram * jf, per_10g: g0.per_10g * jf } : null;
+  const s = s0 ? { per_gram: s0.per_gram * jf, per_kg: s0.per_kg * jf } : null;
+  const tickColor = dir === 1 ? "text-pos" : dir === -1 ? "text-neg" : "text-ink";
 
   return (
     <>
@@ -337,8 +356,8 @@ export default function McxPriceTracker({ initialCurrent }: { initialCurrent: Cu
             <span className="font-serif text-lg font-semibold text-ink">Gold <span className="text-xs font-normal text-mute">999 fine</span></span>
             <span className="rounded-md bg-[#f5edd2] px-2 py-0.5 text-[11px] font-semibold text-[#8a6d10]">LIVE</span>
           </div>
-          <div className="num text-3xl font-bold text-ink">{g ? rup(g.per_gram) : "—"}<span className="ml-1 text-sm font-normal text-mute">/g</span></div>
-          <div className="num mt-0.5 text-sm text-mid">{g ? rup(g.per_10g) : "—"} <span className="text-xs text-mute">/ 10 g</span></div>
+          <div className={`num text-3xl font-bold tabular-nums transition-colors ${g ? tickColor : "text-ink"}`}>{g ? rup(g.per_gram) : "—"}<span className="ml-1 text-sm font-normal text-mute">/g</span></div>
+          <div className="num mt-0.5 text-sm text-mid tabular-nums">{g ? rup(g.per_10g) : "—"} <span className="text-xs text-mute">/ 10 g</span></div>
           {current && (
             <div className="mt-2 text-[11px] text-mute">
               Intl spot ${current.spot.gold_usd.price} · USD/INR {current.spot.usd_inr.price} · +{current.basis.gold.effective_pct}% India
@@ -350,8 +369,8 @@ export default function McxPriceTracker({ initialCurrent }: { initialCurrent: Cu
             <span className="font-serif text-lg font-semibold text-ink">Silver <span className="text-xs font-normal text-mute">999 fine</span></span>
             <span className="rounded-md bg-[#eef0f2] px-2 py-0.5 text-[11px] font-semibold text-[#5a6472]">LIVE</span>
           </div>
-          <div className="num text-3xl font-bold text-ink">{s ? rup(s.per_gram, 2) : "—"}<span className="ml-1 text-sm font-normal text-mute">/g</span></div>
-          <div className="num mt-0.5 text-sm text-mid">{s ? rup(s.per_kg) : "—"} <span className="text-xs text-mute">/ kg</span></div>
+          <div className={`num text-3xl font-bold tabular-nums transition-colors ${s ? tickColor : "text-ink"}`}>{s ? rup(s.per_gram, 2) : "—"}<span className="ml-1 text-sm font-normal text-mute">/g</span></div>
+          <div className="num mt-0.5 text-sm text-mid tabular-nums">{s ? rup(s.per_kg) : "—"} <span className="text-xs text-mute">/ kg</span></div>
           {current && (
             <div className="mt-2 text-[11px] text-mute">
               Intl spot ${current.spot.silver_usd.price} · USD/INR {current.spot.usd_inr.price} · +{current.basis.silver.effective_pct}% India
