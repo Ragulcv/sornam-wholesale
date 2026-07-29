@@ -86,6 +86,7 @@ export default function LogimaxEntryForm({
   const [history, setHistory] = useState<{ id: string; serialNo: number; trnType: string; date: string; gross: number }[]>([]);
   const [partyBal, setPartyBal] = useState<number | null>(null);
   const [waUrl, setWaUrl] = useState<string | null>(null);
+  const [confirmUnsettled, setConfirmUnsettled] = useState(false);
 
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
@@ -218,6 +219,24 @@ export default function LogimaxEntryForm({
   async function save() {
     setError(null); setStatus(null);
     if (sales.length === 0 && returns.length === 0) { setError("Add at least one Sales or Sales Return row."); return; }
+
+    // Accounting integrity: a bill must actually move money or metal — no empty ₹0 records.
+    const billValue = round2(saleT.amt + retT.amt);
+    const cashMoved = nn(mcCashRecd) + nn(cashBankRecd) + nn(bankRecd);
+    const metalMoved = moveTotals.wt;
+    if (billValue <= 0 && cashMoved <= 0 && metalMoved <= 0) {
+      setError("This bill has no value. Enter a Rate on the items (so it has an amount), or record cash / bank received, or metal received in exchange — an empty ₹0 bill can't be saved.");
+      return;
+    }
+    // Any unsettled balance must be carried to a named customer's account (credit).
+    const unsettled = Math.abs(recon.closingCash) > 0.005 || Math.abs(recon.closingPure) > 0.005;
+    const hasParty = !!party || !!partyQuery.trim();
+    if (unsettled && !hasParty) {
+      setError("This bill isn't fully settled — pick or type the customer so the outstanding balance is carried to their account.");
+      return;
+    }
+    if (unsettled && !confirmUnsettled) { setConfirmUnsettled(true); return; }
+    setConfirmUnsettled(false);
     setSaving(true);
     const saleKind = (trnType === "sales" ? "sale" : "purchase") as "sale" | "purchase";
     const retKind = (trnType === "sales" ? "sale_return" : "purchase_return") as "sale_return" | "purchase_return";
@@ -466,6 +485,26 @@ export default function LogimaxEntryForm({
         </div>
       </div>
       {operatorName && <div className="mt-4 text-right text-[11px] text-[#888]">Operator: {operatorName}</div>}
+
+      {/* Unsettled-bill confirmation — the balance is carried to the customer's account */}
+      {confirmUnsettled && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setConfirmUnsettled(false)}>
+          <div className="w-full max-w-sm rounded-xl bg-white p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="text-[15px] font-semibold text-black">Bill not fully settled</div>
+            <div className="mt-2 text-[13px] text-[#555]">The closing balance isn&apos;t zero — this will be carried to <b>{party?.name ?? partyQuery}</b>&apos;s account:</div>
+            <ul className="mt-2 space-y-1 text-[13px]">
+              {Math.abs(recon.closingCash) > 0.005 && (
+                <li>Cash: {recon.closingCash < 0 ? <b className="text-[#8b0000]">customer owes ₹{f2(Math.abs(recon.closingCash))}</b> : <b className="text-[#0a7a3f]">to receive ₹{f2(recon.closingCash)}</b>}</li>
+              )}
+              {Math.abs(recon.closingPure) > 0.005 && <li>Pure metal: <b>{f3(recon.closingPure)} g outstanding</b></li>}
+            </ul>
+            <div className="mt-4 flex gap-2">
+              <button onClick={save} disabled={saving} className="flex-1 rounded-lg bg-onyx px-4 py-2.5 text-[14px] font-bold text-gold-hi disabled:opacity-50">Save as credit</button>
+              <button onClick={() => setConfirmUnsettled(false)} className="rounded-lg border border-[#ccc] px-4 py-2 text-[13px] font-semibold text-[#555]">Go back</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* WhatsApp confirmation popup after saving a sale/purchase */}
       {waUrl && (

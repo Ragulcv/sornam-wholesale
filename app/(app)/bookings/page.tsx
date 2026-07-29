@@ -21,10 +21,15 @@ export default async function BookingsPage() {
   const bookedGold = round3(openMetal.filter((b) => b.metal === "gold").reduce((a, b) => a + (b.weightBooked ?? 0), 0));
   const bookedSilver = round3(openMetal.filter((b) => b.metal === "silver").reduce((a, b) => a + (b.weightBooked ?? 0), 0));
 
+  // Non-blocking shortage: booked weight for the metal exceeds current pure stock.
+  const shortGold = round3(Math.max(0, bookedGold - stock.currentPureGold));
+  const shortSilver = round3(Math.max(0, bookedSilver - stock.currentPureSilver));
+
   return (
     <BookingsClient
       bookings={bookings}
       parties={parties}
+      shortage={{ gold: shortGold, silver: shortSilver }}
       goldRate={s.defaultGoldRate ? parseFloat(s.defaultGoldRate) : null}
       silverRate={s.defaultSilverRate ? parseFloat(s.defaultSilverRate) : null}
       chart={

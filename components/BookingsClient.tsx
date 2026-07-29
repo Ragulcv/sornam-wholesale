@@ -13,6 +13,7 @@ import { Card, PageHeader, StatusBadge } from "@/components/ui";
 import Toolbar from "@/components/Toolbar";
 import { fmtMoney, fmtWeight, fmtRate, metalLabel } from "@/lib/format";
 import { round3 } from "@/lib/bullion";
+import { buildBookingWhatsapp } from "@/lib/whatsapp";
 import type { BookingRow } from "@/lib/queries/bookings";
 
 type PartyOpt = { id: string; name: string; phone: string | null };
@@ -22,12 +23,14 @@ const nn = (s: string) => parseFloat(s) || 0;
 export default function BookingsClient({
   bookings,
   parties,
+  shortage,
   goldRate,
   silverRate,
   chart,
 }: {
   bookings: BookingRow[];
   parties: PartyOpt[];
+  shortage: { gold: number; silver: number };
   goldRate: number | null;
   silverRate: number | null;
   chart?: React.ReactNode;
@@ -102,11 +105,26 @@ export default function BookingsClient({
     else setError(r.error ?? "Could not save.");
   }
 
+  // Enter in any text/number input submits the booking.
+  const onEnter = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") { e.preventDefault(); if (!saving) save(); }
+  };
+
+  const anyShort = shortage.gold > 0 || shortage.silver > 0;
+
   return (
     <>
       <PageHeader title="Bookings" subtitle="Reserve metal or amount; deliver later." />
       {chart}
       <Toolbar items={[{ label: "Add", onClick: resetAll, primary: true }, { label: "Save", onClick: save, disabled: saving }, { label: "Cancel", onClick: resetAll }]} />
+
+      {anyShort && (
+        <Card className="mb-4 border-[#f1c9c4] bg-[#fdf0ee] p-3">
+          <span className="text-sm font-semibold text-neg">
+            Booked more than stock —{shortage.gold > 0 ? ` short by ${fmtWeight(shortage.gold)} gold` : ""}{shortage.gold > 0 && shortage.silver > 0 ? "," : ""}{shortage.silver > 0 ? ` short by ${fmtWeight(shortage.silver)} silver` : ""} in stock. Bookings are still saved.
+          </span>
+        </Card>
+      )}
 
       {result && (
         <Card className="mb-4 flex items-center justify-between gap-3 border-[#cde9d8] bg-[#eaf6ef] p-4">
@@ -133,30 +151,30 @@ export default function BookingsClient({
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <div className="relative col-span-2">
             <span className="mb-1 block text-[11px] font-semibold uppercase text-mute">Party — pick or type new</span>
-            <input value={party ? party.name : partyQuery} onChange={(e) => { setPartyQuery(e.target.value); setPartyId(null); setShowParties(true); }} onFocus={() => setShowParties(true)} onBlur={() => setTimeout(() => setShowParties(false), 150)} className={inp} placeholder="Search or add customer" autoComplete="off" />
+            <input value={party ? party.name : partyQuery} onChange={(e) => { setPartyQuery(e.target.value); setPartyId(null); setShowParties(true); }} onFocus={() => setShowParties(true)} onBlur={() => setTimeout(() => setShowParties(false), 150)} onKeyDown={onEnter} className={inp} placeholder="Search or add customer" autoComplete="off" />
             {showParties && matches.length > 0 && (
               <ul className="absolute z-20 mt-1 max-h-56 w-full overflow-auto rounded-lg border border-line bg-pearl py-1 shadow-lg">
                 {matches.map((p) => (<li key={p.id}><button type="button" onMouseDown={(e) => { e.preventDefault(); setPartyId(p.id); setPartyQuery(p.name); setShowParties(false); }} className="flex w-full justify-between px-3 py-1.5 text-left text-sm hover:bg-cream"><span>{p.name}</span><span className="text-xs text-mute">{p.phone}</span></button></li>))}
               </ul>
             )}
           </div>
-          <div className="col-span-2"><span className="mb-1 block text-[11px] font-semibold uppercase text-mute">Phone</span><input inputMode="tel" value={party ? party.phone ?? "" : newPhone} onChange={(e) => setNewPhone(e.target.value)} readOnly={!!party} className={inp} placeholder="if new customer" /></div>
+          <div className="col-span-2"><span className="mb-1 block text-[11px] font-semibold uppercase text-mute">Phone</span><input inputMode="tel" value={party ? party.phone ?? "" : newPhone} onChange={(e) => setNewPhone(e.target.value)} onKeyDown={onEnter} readOnly={!!party} className={inp} placeholder="if new customer" /></div>
           {bookMode === "metal" ? (
             <>
-              <div><span className="mb-1 block text-[11px] font-semibold uppercase text-mute">Weight (g)</span><input inputMode="decimal" value={weight} onChange={(e) => setWeight(e.target.value)} className={`${inp} num`} /></div>
+              <div><span className="mb-1 block text-[11px] font-semibold uppercase text-mute">Weight (g)</span><input inputMode="decimal" value={weight} onChange={(e) => setWeight(e.target.value)} onKeyDown={onEnter} className={`${inp} num`} /></div>
               <div><span className="mb-1 block text-[11px] font-semibold uppercase text-mute">Locked rate /g</span>
                 <div className="flex gap-1">
-                  <input inputMode="decimal" value={rate} onChange={(e) => setRate(e.target.value)} className={`${inp} num flex-1`} placeholder={String((metal === "gold" ? goldRate : silverRate) ?? "")} />
+                  <input inputMode="decimal" value={rate} onChange={(e) => setRate(e.target.value)} onKeyDown={onEnter} className={`${inp} num flex-1`} placeholder={String((metal === "gold" ? goldRate : silverRate) ?? "")} />
                   <button type="button" onClick={useLiveRate} disabled={fetchingRate} className="flex-none rounded-md border border-gold/40 bg-[rgba(201,162,39,.08)] px-2 text-xs font-semibold text-gold-deep disabled:opacity-50">{fetchingRate ? "…" : "Live"}</button>
                 </div>
               </div>
             </>
           ) : (
             <>
-              <div className="col-span-2"><span className="mb-1 block text-[11px] font-semibold uppercase text-mute">Amount (₹)</span><input inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} className={`${inp} num`} /></div>
+              <div className="col-span-2"><span className="mb-1 block text-[11px] font-semibold uppercase text-mute">Amount (₹)</span><input inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} onKeyDown={onEnter} className={`${inp} num`} /></div>
               <div><span className="mb-1 block text-[11px] font-semibold uppercase text-mute">Rate /g</span>
                 <div className="flex gap-1">
-                  <input inputMode="decimal" value={rate} onChange={(e) => setRate(e.target.value)} className={`${inp} num flex-1`} placeholder={String((metal === "gold" ? goldRate : silverRate) ?? "")} />
+                  <input inputMode="decimal" value={rate} onChange={(e) => setRate(e.target.value)} onKeyDown={onEnter} className={`${inp} num flex-1`} placeholder={String((metal === "gold" ? goldRate : silverRate) ?? "")} />
                   <button type="button" onClick={useLiveRate} disabled={fetchingRate} className="flex-none rounded-md border border-gold/40 bg-[rgba(201,162,39,.08)] px-2 text-xs font-semibold text-gold-deep disabled:opacity-50">{fetchingRate ? "…" : "Live"}</button>
                 </div>
               </div>
@@ -165,7 +183,11 @@ export default function BookingsClient({
               </div>
             </>
           )}
-          <div><span className="mb-1 block text-[11px] font-semibold uppercase text-mute">Advance (₹)</span><input inputMode="decimal" value={advance} onChange={(e) => setAdvance(e.target.value)} className={`${inp} num`} /></div>
+          <div><span className="mb-1 block text-[11px] font-semibold uppercase text-mute">Advance (₹)</span><input inputMode="decimal" value={advance} onChange={(e) => setAdvance(e.target.value)} onKeyDown={onEnter} className={`${inp} num`} /></div>
+          {/* In-form prominent submit — sits to the right of Advance. */}
+          <div className="col-span-2 flex items-end sm:col-span-1">
+            <button type="button" onClick={save} disabled={saving} className="gold-grad w-full rounded-md px-4 py-2 text-sm font-bold text-onyx disabled:cursor-not-allowed disabled:opacity-50">{saving ? "Saving…" : "Save booking"}</button>
+          </div>
         </div>
         {error && <p className="mt-3 rounded-lg bg-[#fdecea] px-3 py-2 text-sm text-neg">{error}</p>}
       </Card>
@@ -182,7 +204,19 @@ export default function BookingsClient({
                 {metalLabel(b.metal)} · {b.bookMode === "metal" ? `${fmtWeight(b.weightBooked ?? 0)}${b.lockedRate ? ` @ ${fmtRate(b.lockedRate)}/g` : ""}` : `Amount ${fmtMoney(b.amount ?? 0)}${b.lockedRate ? ` @ ${fmtRate(b.lockedRate)}/g ≈ ${fmtWeight(round3((b.amount ?? 0) / b.lockedRate))}` : ""}`}
                 {b.advancePaid > 0 && ` · advance ${fmtMoney(b.advancePaid)}`}
               </div>
+              {b.status !== "delivered" && b.status !== "cancelled" && b.bookMode === "metal" && shortage[b.metal] > 0 && (
+                <div className="mt-0.5 text-[11px] font-semibold text-neg">Booked — short by {fmtWeight(shortage[b.metal])} in stock</div>
+              )}
             </div>
+            {b.partyPhone && (
+              <a
+                href={buildBookingWhatsapp(b.partyPhone, { partyName: b.partyName ?? "Customer", metal: b.metal, bookMode: b.bookMode, weight: b.weightBooked ?? undefined, rate: b.lockedRate ?? undefined, amount: b.amount ?? undefined, advance: b.advancePaid })}
+                target="_blank" rel="noopener noreferrer" title="Send WhatsApp confirmation"
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#25D366] text-white hover:bg-[#1fb855]"
+              >
+                <svg viewBox="0 0 24 24" className="h-4 w-4" fill="currentColor"><path d="M12 2a10 10 0 0 0-8.6 15l-1.4 5 5.1-1.3A10 10 0 1 0 12 2Zm0 18a8 8 0 0 1-4.1-1.1l-.3-.2-3 .8.8-2.9-.2-.3A8 8 0 1 1 12 20Z" /></svg>
+              </a>
+            )}
             {b.status !== "delivered" && b.status !== "cancelled" && (
               <button onClick={() => setDeliver(b)} className="rounded-lg border border-[#cde9d8] bg-[#eaf6ef] px-3 py-1.5 text-xs font-semibold text-pos hover:bg-[#dcefe4]">Deliver</button>
             )}
