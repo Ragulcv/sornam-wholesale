@@ -5,7 +5,7 @@
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const ORIGIN = process.env.PRICE_API_ORIGIN || "http://172.245.95.193:4000";
+const ORIGIN = process.env.PRICE_API_ORIGIN || "https://price.167.86.87.188.sslip.io";
 
 export async function GET() {
   try {
