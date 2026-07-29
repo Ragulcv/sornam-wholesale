@@ -1,17 +1,28 @@
 import { listPartyOptions } from "@/lib/queries/parties";
+import { listBookings } from "@/lib/queries/bookings";
 import { getSettings } from "@/lib/auth";
-import EntryForm from "@/components/EntryForm";
+import { getSession } from "@/lib/session";
+import LogimaxEntryForm from "@/components/LogimaxEntryForm";
 
 export const dynamic = "force-dynamic";
 
 export default async function EntryPage() {
-  const [parties, s] = await Promise.all([listPartyOptions(), getSettings()]);
+  const [parties, bookings, s, session] = await Promise.all([
+    listPartyOptions(),
+    listBookings({ status: "open" }),
+    getSettings(),
+    getSession(),
+  ]);
   return (
-    <EntryForm
+    <LogimaxEntryForm
       parties={parties}
-      tdsPercent={parseFloat(s.tdsPercent ?? "0")}
+      bookings={bookings.map((b) => ({
+        id: b.id,
+        label: `${b.partyName} · ${b.metal} · ${b.weightBooked ?? b.amount ?? ""}`,
+      }))}
       goldRate={s.defaultGoldRate ? parseFloat(s.defaultGoldRate) : null}
       silverRate={s.defaultSilverRate ? parseFloat(s.defaultSilverRate) : null}
+      operatorName={session.operatorName}
     />
   );
 }

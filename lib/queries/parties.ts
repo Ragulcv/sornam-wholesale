@@ -49,12 +49,25 @@ export async function listParties(): Promise<PartyRow[]> {
 }
 
 export async function listPartyOptions(): Promise<
-  { id: string; name: string; phone: string | null }[]
+  { id: string; name: string; phone: string | null; opgPure: number; opgCash: number }[]
 > {
-  return db
-    .select({ id: parties.id, name: parties.name, phone: parties.phone })
+  const rows = await db
+    .select({
+      id: parties.id,
+      name: parties.name,
+      phone: parties.phone,
+      openingPureGold: parties.openingPureGold,
+      openingCash: parties.openingCash,
+    })
     .from(parties)
     .orderBy(asc(parties.name));
+  return rows.map((p) => ({
+    id: p.id,
+    name: p.name,
+    phone: p.phone,
+    opgPure: Number(p.openingPureGold ?? 0),
+    opgCash: Number(p.openingCash ?? 0),
+  }));
 }
 
 export async function createParty(data: {
