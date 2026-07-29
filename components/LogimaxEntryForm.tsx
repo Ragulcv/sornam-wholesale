@@ -6,9 +6,10 @@
 // the validated reconcile() engine (lib/bullion.ts) which reproduces the
 // legacy math to the decimal.
 
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createTransactionAction, type TxnActionInput } from "@/app/actions";
+import { loadBillAction, updateBillAction, partyHistoryAction, partyBalanceAction } from "@/app/(app)/entry/actions";
 import { pure, lineAmount, round2, round3, reconcile } from "@/lib/bullion";
 
 type PartyOpt = { id: string; name: string; phone: string | null; opgPure?: number; opgCash?: number };
@@ -78,6 +79,12 @@ export default function LogimaxEntryForm({
   const [cashBankRecd, setCashBankRecd] = useState("0");
   const [discPure, setDiscPure] = useState("0");
   const [discCash, setDiscCash] = useState("0");
+
+  // edit-existing (items #3, #16) + party balance (#9)
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [findNo, setFindNo] = useState("");
+  const [history, setHistory] = useState<{ id: string; serialNo: number; trnType: string; date: string; gross: number }[]>([]);
+  const [partyBal, setPartyBal] = useState<number | null>(null);
 
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
@@ -158,11 +165,52 @@ export default function LogimaxEntryForm({
     } catch { /* ignore */ }
   }, [metal]);
 
+  // party running balance + recent-bill history (items #9, #16)
+  useEffect(() => {
+    if (!partyId) { setHistory([]); setPartyBal(null); return; }
+    let alive = true;
+    partyBalanceAction(partyId).then((b) => { if (alive) setPartyBal(b); }).catch(() => {});
+    partyHistoryAction(partyId)
+      .then((rows) => { if (alive) setHistory(rows.map((r) => ({ id: r.id, serialNo: r.serialNo, trnType: r.trnType, date: new Date(r.txnDate).toLocaleDateString("en-IN"), gross: r.gross }))); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [partyId]);
+
+  // Find + load an existing bill by No. (item #3)
+  async function findBill(serial?: number) {
+    const no = serial ?? parseInt(findNo, 10);
+    if (!Number.isFinite(no)) { setError("Enter a bill No. to find."); return; }
+    setError(null);
+    setFindNo(String(no));
+    const r = await loadBillAction(no);
+    if (!r.ok) { setError(r.error); return; }
+    const d = r.detail;
+    setEditingId(d.id);
+    setTrnType(d.trnType === "purchase" ? "purchase" : "sales");
+    setMetal(d.metal);
+    setPartyId(d.partyId);
+    setPartyQuery(d.partyName ?? "");
+    setTxnDate(new Date(d.txnDate).toISOString().slice(0, 10));
+    setBarRate(d.barRate != null ? String(d.barRate) : "");
+    setRefNo(d.refNo ?? "");
+    const toRow = (l: { particulars: string | null; weight: number; touch: number | null; rate: number }) =>
+      ({ bookingId: null, particulars: l.particulars ?? "", weight: String(l.weight), touch: l.touch != null ? String(l.touch) : "", rate: String(l.rate) });
+    setSales(d.lines.filter((l) => l.kind === "sale" || l.kind === "purchase").map(toRow));
+    setReturns(d.lines.filter((l) => l.kind === "sale_return" || l.kind === "purchase_return").map(toRow));
+    setMoves(d.movements.map((m) => ({ particulars: m.particulars ?? "", weight: String(m.weight), touch: m.touch != null ? String(m.touch) : "", aTouch: m.aTouch != null ? String(m.aTouch) : "" })));
+    const cashR = d.settlements.filter((s) => s.mode === "cash" && s.direction === "received").reduce((a, s) => a + s.amount, 0);
+    const bankR = d.settlements.filter((s) => s.mode === "bank" && s.direction === "received").reduce((a, s) => a + s.amount, 0);
+    setMcCashRecd(cashR ? String(cashR) : "");
+    setBankRecd(bankR ? String(bankR) : "");
+    setStatus(`Editing bill No. ${d.serialNo}`);
+  }
+
   function clearAll() {
     setPartyId(null); setPartyQuery(""); setNewPhone(""); setBarRate(""); setRateGm(""); setRefNo(""); setThru("");
     setSales([]); setReturns([]); setMoves([]); setSaleDraft(blankSale()); setReturnDraft(blankSale()); setMoveDraft(blankMove());
     setIntDisPure("0"); setIntDisCash("0"); setMcCashRecd(""); setBankRecd(""); setConversion("cash"); setCashBankRecd("0");
     setDiscPure("0"); setDiscCash("0"); setStatus(null); setError(null);
+    setEditingId(null); setFindNo("");
     nameRef.current?.focus();
   }
 
@@ -194,10 +242,14 @@ export default function LogimaxEntryForm({
         { mode: "bank" as const, direction: "received" as const, amount: nn(bankRecd) },
       ].filter((s) => s.amount > 0),
     };
-    const r = await createTransactionAction(input);
+    const r = editingId ? await updateBillAction(editingId, input) : await createTransactionAction(input);
     setSaving(false);
-    if (r.ok) { setStatus(`Sucessfully Added.  (No. ${r.serialNo})`); router.refresh(); }
-    else setError(r.error ?? "Could not save.");
+    if (r.ok) {
+      const sn = (r as { serialNo?: number }).serialNo;
+      setStatus(editingId ? `Bill No. ${sn} updated.` : `Sucessfully Added.  (No. ${sn})`);
+      setEditingId(null);
+      router.refresh();
+    } else setError((r as { error?: string }).error ?? "Could not save.");
   }
 
   const title = trnType === "sales" ? "SALES ENTRIES" : "PURCHASE ENTRIES";
@@ -219,11 +271,16 @@ export default function LogimaxEntryForm({
         <div className="ml-auto text-[15px] font-bold tracking-wide">{title}</div>
       </div>
 
-      {/* toolbar — functional actions only (Find/Edit/Print arrive with items 3/16) */}
+      {/* toolbar — functional actions */}
       <div className="mb-1 flex flex-wrap items-center gap-2">
         <button className={btn} onClick={clearAll} title="New / clear the form">Add</button>
-        <button className={btn} onClick={save} disabled={saving}>{saving ? "Saving…" : "Save"}</button>
+        <button className={btn} onClick={save} disabled={saving}>{saving ? "Saving…" : editingId ? "Update" : "Save"}</button>
         <button className={btn} onClick={clearAll}>Cancel</button>
+        <span className="ml-2 flex items-center gap-1">
+          <input value={findNo} onChange={(e) => setFindNo(e.target.value)} placeholder="Bill No." className={`${fld} ${num} w-20`} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); findBill(); } }} />
+          <button className={btn} onClick={() => findBill()}>Find</button>
+        </span>
+        {editingId && <span className="text-[12px] font-semibold text-[#8b0000]">● editing existing bill</span>}
       </div>
       {status && <div className="mb-2 text-[13px] font-semibold text-[#8b0000]">{status}</div>}
       {error && <div className="mb-2 text-[13px] font-semibold text-[#8b0000]">{error}</div>}
@@ -376,9 +433,41 @@ export default function LogimaxEntryForm({
             <input readOnly value={f2(recon.closingCash)} className={`${roFld} ${num} bg-[#fbf6cf]`} />
           </div>
           {party && (
-            <div className="mt-3 border border-[#7f9db9] bg-[#f7f7f0] px-2 py-1 text-[12px]">
-              {party.name} balance — Pure {f3(opgPure)} · Cash ₹{f2(opgCash)}
-              <span className="ml-1 text-[#666]">(before this bill)</span>
+            <div className="mt-3 border border-[#7f9db9] bg-[#f7f7f0] px-2 py-2 text-[12px]">
+              <div className="font-semibold">{party.name}</div>
+              <div className="mt-0.5">
+                Balance:{" "}
+                {partyBal == null ? (
+                  <span className="text-[#666]">…</span>
+                ) : partyBal < -0.005 ? (
+                  <span className="font-bold text-[#8b0000]">owes ₹{f2(Math.abs(partyBal))}</span>
+                ) : partyBal > 0.005 ? (
+                  <span className="font-bold text-[#0a7a3f]">to receive ₹{f2(partyBal)}</span>
+                ) : (
+                  <span className="font-bold">settled</span>
+                )}
+                <span className="ml-1 text-[#666]">· opening Pure {f3(opgPure)} / Cash ₹{f2(opgCash)}</span>
+              </div>
+              {history.length > 0 && (
+                <div className="mt-2">
+                  <div className="mb-0.5 font-semibold text-[#333]">Recent bills</div>
+                  <div className="max-h-32 overflow-auto border border-[#ddd] bg-white">
+                    <table className="w-full text-[11px]">
+                      <tbody>
+                        {history.map((h) => (
+                          <tr key={h.id} className="border-b border-[#eee]">
+                            <td className="px-1 py-0.5 text-[#666]">No. {h.serialNo}</td>
+                            <td className="px-1 py-0.5 capitalize">{h.trnType}</td>
+                            <td className="px-1 py-0.5">{h.date}</td>
+                            <td className="px-1 py-0.5 text-right tabular-nums">₹{f2(h.gross)}</td>
+                            <td className="px-1 py-0.5 text-right"><button className="text-[#3b6ea5] underline" onClick={() => findBill(h.serialNo)}>load</button></td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>

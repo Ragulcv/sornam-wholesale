@@ -15,8 +15,11 @@ export default async function TodayPage() {
     listHistory({ from: today, to: today }),
     getSettings(),
   ]);
-  const salesValue = todays.filter((t) => t.trnType === "sales").reduce((a, t) => a + t.value, 0);
-  const purchaseValue = todays.filter((t) => t.trnType === "purchase").reduce((a, t) => a + t.value, 0);
+  const salesTxns = todays.filter((t) => t.trnType === "sales");
+  const salesValue = salesTxns.reduce((a, t) => a + t.value, 0);
+  // Cash vs bank split from today's sales settlements (receipts).
+  const cashSales = salesTxns.reduce((a, t) => a + t.cashRecd, 0);
+  const bankSales = salesTxns.reduce((a, t) => a + t.bankRecd, 0);
 
   return (
     <>
@@ -31,16 +34,23 @@ export default async function TodayPage() {
         initialSilver={s.defaultSilverRate ? parseFloat(s.defaultSilverRate) : null}
       />
 
-      <div className="mb-3 grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="mb-3 grid grid-cols-2 gap-3 lg:grid-cols-3">
         <StatTile label="Gold in stock" value={fmtWeight(stock.currentPureGold)} accent />
         <StatTile label="Silver in stock" value={fmtWeight(stock.currentPureSilver)} />
         <StatTile label="Cash" value={fmtMoney(stock.currentCash)} />
-        <StatTile label="Bank" value={fmtMoney(stock.currentBank)} />
       </div>
-      <div className="mb-6 grid grid-cols-2 gap-3">
-        <StatTile label="Sales today" value={fmtMoney(salesValue)} hint={`${todays.filter((t) => t.trnType === "sales").length} entries`} />
-        <StatTile label="Purchases today" value={fmtMoney(purchaseValue)} hint={`${todays.filter((t) => t.trnType === "purchase").length} entries`} />
-      </div>
+      <Card className="mb-6 p-4">
+        <div className="text-[11px] font-semibold uppercase tracking-wider text-mute">Sales today</div>
+        <div className="num mt-1.5 text-2xl text-ink">
+          {fmtMoney(salesValue)}
+          <span className="ml-2 text-sm font-normal text-mute">
+            Cash <span className="num font-semibold text-ink">{fmtMoney(cashSales)}</span>
+            <span className="mx-1.5 text-line2">·</span>
+            Bank <span className="num font-semibold text-ink">{fmtMoney(bankSales)}</span>
+          </span>
+        </div>
+        <div className="mt-0.5 text-xs text-mute">{salesTxns.length} entries</div>
+      </Card>
 
       <h2 className="mb-3 font-serif text-xl font-semibold text-ink">Today&apos;s transactions</h2>
       {todays.length === 0 ? (

@@ -8,9 +8,11 @@ import {
   deleteBookingAction,
   type BookingActionInput,
 } from "@/app/actions";
+import { getPartyBalanceAction } from "@/app/(app)/bookings/actions";
 import { Card, PageHeader, StatusBadge } from "@/components/ui";
 import Toolbar from "@/components/Toolbar";
 import { fmtMoney, fmtWeight, fmtRate, metalLabel } from "@/lib/format";
+import { round3 } from "@/lib/bullion";
 import type { BookingRow } from "@/lib/queries/bookings";
 
 type PartyOpt = { id: string; name: string; phone: string | null };
@@ -65,6 +67,12 @@ export default function BookingsClient({
     return parties.filter((p) => !q || p.name.toLowerCase().includes(q) || (p.phone || "").includes(q)).slice(0, 8);
   }, [parties, partyQuery]);
 
+  // By-amount bookings imply a weight: amount ÷ rate/g.
+  const impliedGrams = useMemo(() => {
+    const a = nn(amount), r = nn(rate);
+    return r > 0 ? round3(a / r) : 0;
+  }, [amount, rate]);
+
   function clearForm() {
     setPartyId(null); setPartyQuery(""); setWeight(""); setRate(""); setAmount(""); setAdvance(""); setNewPhone("");
     setError(null);
@@ -84,7 +92,7 @@ export default function BookingsClient({
       partyPhone: party ? party.phone ?? undefined : newPhone.trim() || undefined,
       metal, bookMode,
       weightBooked: bookMode === "metal" ? nn(weight) : null,
-      lockedRate: bookMode === "metal" ? nn(rate) : null,
+      lockedRate: nn(rate) || null,
       amount: bookMode === "amount" ? nn(amount) : null,
       advancePaid: nn(advance),
     };
@@ -144,7 +152,18 @@ export default function BookingsClient({
               </div>
             </>
           ) : (
-            <div className="col-span-2"><span className="mb-1 block text-[11px] font-semibold uppercase text-mute">Amount (₹)</span><input inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} className={`${inp} num`} /></div>
+            <>
+              <div className="col-span-2"><span className="mb-1 block text-[11px] font-semibold uppercase text-mute">Amount (₹)</span><input inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} className={`${inp} num`} /></div>
+              <div><span className="mb-1 block text-[11px] font-semibold uppercase text-mute">Rate /g</span>
+                <div className="flex gap-1">
+                  <input inputMode="decimal" value={rate} onChange={(e) => setRate(e.target.value)} className={`${inp} num flex-1`} placeholder={String((metal === "gold" ? goldRate : silverRate) ?? "")} />
+                  <button type="button" onClick={useLiveRate} disabled={fetchingRate} className="flex-none rounded-md border border-gold/40 bg-[rgba(201,162,39,.08)] px-2 text-xs font-semibold text-gold-deep disabled:opacity-50">{fetchingRate ? "…" : "Live"}</button>
+                </div>
+              </div>
+              <div><span className="mb-1 block text-[11px] font-semibold uppercase text-mute">Implied grams</span>
+                <div className={`${inp} num flex items-center text-mid`}>{impliedGrams > 0 ? fmtWeight(impliedGrams) : "—"}</div>
+              </div>
+            </>
           )}
           <div><span className="mb-1 block text-[11px] font-semibold uppercase text-mute">Advance (₹)</span><input inputMode="decimal" value={advance} onChange={(e) => setAdvance(e.target.value)} className={`${inp} num`} /></div>
         </div>
@@ -160,7 +179,7 @@ export default function BookingsClient({
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2"><span className="truncate font-medium text-ink">{b.partyName}</span><StatusBadge status={b.status === "open" ? "open" : b.status === "delivered" ? "completed" : "partial"} /></div>
               <div className="text-xs text-mute">
-                {metalLabel(b.metal)} · {b.bookMode === "metal" ? `${fmtWeight(b.weightBooked ?? 0)}${b.lockedRate ? ` @ ${fmtRate(b.lockedRate)}/g` : ""}` : `Amount ${fmtMoney(b.amount ?? 0)}`}
+                {metalLabel(b.metal)} · {b.bookMode === "metal" ? `${fmtWeight(b.weightBooked ?? 0)}${b.lockedRate ? ` @ ${fmtRate(b.lockedRate)}/g` : ""}` : `Amount ${fmtMoney(b.amount ?? 0)}${b.lockedRate ? ` @ ${fmtRate(b.lockedRate)}/g ≈ ${fmtWeight(round3((b.amount ?? 0) / b.lockedRate))}` : ""}`}
                 {b.advancePaid > 0 && ` · advance ${fmtMoney(b.advancePaid)}`}
               </div>
             </div>
@@ -186,6 +205,7 @@ function DeliverModal({ booking, onClose, onDone }: { booking: BookingRow; onClo
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [wa, setWa] = useState<string | null>(null);
+  const [balance, setBalance] = useState<number | null>(null);
 
   async function go() {
     setError(null);
@@ -201,7 +221,10 @@ function DeliverModal({ booking, onClose, onDone }: { booking: BookingRow; onClo
       ].filter((s) => s.amount > 0),
     });
     setBusy(false);
-    if (r.ok) { setWa((r.whatsappUrl as string) ?? null); }
+    if (r.ok) {
+      setWa((r.whatsappUrl as string) ?? null);
+      try { setBalance(await getPartyBalanceAction(booking.partyId)); } catch { /* balance is best-effort */ }
+    }
     else setError(r.error ?? "Could not deliver.");
   }
 
@@ -230,6 +253,18 @@ function DeliverModal({ booking, onClose, onDone }: { booking: BookingRow; onClo
         ) : (
           <div className="flex flex-col gap-2">
             <p className="rounded-lg bg-[#eaf6ef] px-3 py-2 text-sm text-pos">Delivered — sale entry created.</p>
+            {balance !== null && (
+              <div className="flex items-center justify-between rounded-lg border border-line bg-cream px-3 py-2 text-sm">
+                <span className="text-mute">{booking.partyName} balance</span>
+                {Math.abs(balance) < 0.01 ? (
+                  <span className="font-semibold text-mid">Settled</span>
+                ) : balance < 0 ? (
+                  <span className="font-semibold text-neg">Owes {fmtMoney(-balance)}</span>
+                ) : (
+                  <span className="font-semibold text-pos">To receive {fmtMoney(balance)}</span>
+                )}
+              </div>
+            )}
             {wa && <a href={wa} target="_blank" rel="noopener noreferrer" className="rounded-xl bg-[#25D366] px-4 py-3 text-center font-bold text-white">Send delivered WhatsApp</a>}
             <button onClick={onDone} className="gold-grad rounded-xl px-4 py-2.5 text-sm font-bold text-onyx">Done</button>
           </div>

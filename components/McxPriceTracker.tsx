@@ -337,7 +337,6 @@ export default function McxPriceTracker({ initialCurrent }: { initialCurrent: Cu
   const g0 = current?.gold, s0 = current?.silver;
   const g = g0 ? { per_gram: g0.per_gram * jf, per_10g: g0.per_10g * jf } : null;
   const s = s0 ? { per_gram: s0.per_gram * jf, per_kg: s0.per_kg * jf } : null;
-  const tickColor = dir === 1 ? "text-pos" : dir === -1 ? "text-neg" : "text-ink";
 
   return (
     <>
@@ -349,40 +348,110 @@ export default function McxPriceTracker({ initialCurrent }: { initialCurrent: Cu
         </div>
       )}
 
-      {/* ---- Live board ---- */}
-      <div className="mb-6 grid gap-3 md:grid-cols-2">
-        <Card className="p-4">
-          <div className="mb-1 flex items-center justify-between">
-            <span className="font-serif text-lg font-semibold text-ink">Gold <span className="text-xs font-normal text-mute">999 fine</span></span>
-            <span className="rounded-md bg-[#f5edd2] px-2 py-0.5 text-[11px] font-semibold text-[#8a6d10]">LIVE</span>
-          </div>
-          <div className={`num text-3xl font-bold tabular-nums transition-colors ${g ? tickColor : "text-ink"}`}>{g ? rup(g.per_gram) : "—"}<span className="ml-1 text-sm font-normal text-mute">/g</span></div>
-          <div className="num mt-0.5 text-sm text-mid tabular-nums">{g ? rup(g.per_10g) : "—"} <span className="text-xs text-mute">/ 10 g</span></div>
-          {current && (
-            <div className="mt-2 text-[11px] text-mute">
-              Intl spot ${current.spot.gold_usd.price} · USD/INR {current.spot.usd_inr.price} · +{current.basis.gold.effective_pct}% India
+      {/* ---- Live board — dark bullion ticker ---- */}
+      {(() => {
+        // Direction pill styling driven by the existing per-second flicker.
+        const arrowChar = dir === -1 ? "▼" : "▲";
+        const arrowCls =
+          dir === -1
+            ? "text-[#e06a56] bg-[#e06a56]/12"
+            : dir === 1
+            ? "text-[#45c98a] bg-[#45c98a]/12"
+            : "text-white/40 bg-white/5";
+
+        const board = [
+          {
+            key: "gold" as const,
+            name: "Gold",
+            sym: "XAU",
+            perGram: g ? rup(g.per_gram) : "—",
+            sub: g ? rup(g.per_10g) : "—",
+            subLabel: "/ 10 g",
+            figureCls: "text-gold-hi",
+            spot: current ? current.spot.gold_usd.price : null,
+            premium: current ? current.basis.gold.effective_pct : null,
+          },
+          {
+            key: "silver" as const,
+            name: "Silver",
+            sym: "XAG",
+            perGram: s ? rup(s.per_gram, 2) : "—",
+            sub: s ? rup(s.per_kg) : "—",
+            subLabel: "/ kg",
+            figureCls: "text-[#e6eaf0]",
+            spot: current ? current.spot.silver_usd.price : null,
+            premium: current ? current.basis.silver.effective_pct : null,
+          },
+        ];
+
+        return (
+          <div className="mb-6 overflow-hidden rounded-2xl border border-[#26262b] bg-gradient-to-b from-onyx to-charcoal shadow-[0_1px_2px_rgba(0,0,0,.3),0_18px_40px_-18px_rgba(0,0,0,.6)]">
+            {/* header: LIVE pulse + last updated */}
+            <div className="flex items-center justify-between gap-3 border-b border-white/5 px-4 py-2.5">
+              <div className="flex items-center gap-2.5">
+                <span className="relative flex h-2 w-2">
+                  {!feedDown && (
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#45c98a] opacity-75" />
+                  )}
+                  <span className={`relative inline-flex h-2 w-2 rounded-full ${feedDown ? "bg-[#e06a56]" : "bg-[#45c98a]"}`} />
+                </span>
+                <span className={`text-[11px] font-semibold uppercase tracking-[0.22em] ${feedDown ? "text-[#e06a56]" : "text-[#45c98a]"}`}>
+                  {feedDown ? "Stale" : "Live"}
+                </span>
+                <span className="text-[11px] uppercase tracking-[0.15em] text-white/30">MCX · INR</span>
+              </div>
+              <span className="text-[11px] tabular-nums text-white/40">
+                {current ? <>Updated {timeLabel(current.updatedAt)}</> : "Connecting…"}
+              </span>
             </div>
-          )}
-        </Card>
-        <Card className="p-4">
-          <div className="mb-1 flex items-center justify-between">
-            <span className="font-serif text-lg font-semibold text-ink">Silver <span className="text-xs font-normal text-mute">999 fine</span></span>
-            <span className="rounded-md bg-[#eef0f2] px-2 py-0.5 text-[11px] font-semibold text-[#5a6472]">LIVE</span>
-          </div>
-          <div className={`num text-3xl font-bold tabular-nums transition-colors ${s ? tickColor : "text-ink"}`}>{s ? rup(s.per_gram, 2) : "—"}<span className="ml-1 text-sm font-normal text-mute">/g</span></div>
-          <div className="num mt-0.5 text-sm text-mid tabular-nums">{s ? rup(s.per_kg) : "—"} <span className="text-xs text-mute">/ kg</span></div>
-          {current && (
-            <div className="mt-2 text-[11px] text-mute">
-              Intl spot ${current.spot.silver_usd.price} · USD/INR {current.spot.usd_inr.price} · +{current.basis.silver.effective_pct}% India
+
+            {/* two metals */}
+            <div className="grid divide-y divide-white/5 sm:grid-cols-2 sm:divide-x sm:divide-y-0">
+              {board.map((m) => (
+                <div key={m.key} className="px-5 py-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-baseline gap-2">
+                      <span className="font-serif text-xl font-semibold text-gold-hi">{m.name}</span>
+                      <span className="text-[10px] uppercase tracking-[0.15em] text-white/30">999 fine</span>
+                    </div>
+                    <span className="rounded bg-white/5 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-white/35">{m.sym}</span>
+                  </div>
+
+                  <div className="mt-2.5 flex items-end justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="flex items-baseline gap-1.5">
+                        <span className={`num text-[2.1rem] font-bold leading-none tabular-nums transition-colors ${m.figureCls}`}>{m.perGram}</span>
+                        <span className="text-sm font-normal text-white/35">/g</span>
+                      </div>
+                      <div className="num mt-1.5 text-sm tabular-nums text-white/55">
+                        {m.sub} <span className="text-xs text-white/35">{m.subLabel}</span>
+                      </div>
+                    </div>
+                    <span className={`flex items-center gap-1 rounded-md px-2 py-1 text-sm font-bold tabular-nums transition-colors ${arrowCls}`}>
+                      {arrowChar}
+                    </span>
+                  </div>
+
+                  {m.spot != null && (
+                    <div className="mt-3 border-t border-white/5 pt-2 text-[11px] tabular-nums text-white/40">
+                      Intl spot <span className="text-white/55">${m.spot}</span>
+                      {current && <> · USD/INR <span className="text-white/55">{current.spot.usd_inr.price}</span></>}
+                      {m.premium != null && <> · <span className="text-gold-bright">+{m.premium}%</span> India</>}
+                    </div>
+                  )}
+                </div>
+              ))}
             </div>
-          )}
-        </Card>
-      </div>
-      {current && (
-        <div className="mb-6 -mt-3 text-[11px] text-mute">
-          Updated {timeLabel(current.updatedAt)} · duty {current.basis.gold.duty_pct}% + GST {current.basis.gold.gst_pct}% + market premium (gold {current.basis.gold.market_premium_pct}%, silver {current.basis.silver.market_premium_pct}%)
-        </div>
-      )}
+
+            {/* footer: basis breakdown */}
+            {current && (
+              <div className="border-t border-white/5 bg-black/20 px-4 py-2 text-[10.5px] uppercase tracking-[0.08em] text-white/30">
+                Duty {current.basis.gold.duty_pct}% · GST {current.basis.gold.gst_pct}% · Premium gold {current.basis.gold.market_premium_pct}% / silver {current.basis.silver.market_premium_pct}%
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* ---- Point-in-time lookup ---- */}
       <Card className="mb-6 p-4">

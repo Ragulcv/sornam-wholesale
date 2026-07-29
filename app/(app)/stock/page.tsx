@@ -2,6 +2,7 @@ import { getStock } from "@/lib/queries/stock";
 import { PageHeader, Card, StatTile } from "@/components/ui";
 import { fmtMoney, fmtWeight } from "@/lib/format";
 import StockForm from "./StockForm";
+import BuyGoldForm from "@/components/BuyGoldForm";
 
 export const dynamic = "force-dynamic";
 
@@ -43,6 +44,15 @@ export default async function StockPage() {
             </tr>
           </tbody>
         </table>
+      </Card>
+
+      <Card className="mb-6 p-4">
+        <div className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-mute">Buy gold</div>
+        <p className="mb-3 text-sm text-mute">
+          Records a purchase at the price/gram paid and adds the pure metal to gold stock.
+          Current gold: <span className="num font-semibold text-ink">{fmtWeight(s.currentPureGold)}</span>
+        </p>
+        <BuyGoldForm />
       </Card>
 
       <Card className="p-4">

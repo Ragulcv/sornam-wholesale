@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { listHistory } from "@/lib/queries/history";
+import { getOpeningBalance } from "@/lib/queries/historyBalances";
 import { listPartyOptions } from "@/lib/queries/parties";
 import { PageHeader, Card } from "@/components/ui";
 import { fmtMoney } from "@/lib/format";
@@ -17,9 +18,10 @@ export default async function HistoryPage({
   const sp = await searchParams;
   const typeParam = sp.type ? (Array.isArray(sp.type) ? sp.type : [sp.type]) : [];
   const trnTypes = TYPES.filter((t) => typeParam.includes(t)) as ("sales" | "purchase" | "expense")[];
-  const [rows, parties] = await Promise.all([
+  const [rows, parties, opening] = await Promise.all([
     listHistory({ from: sp.from, to: sp.to, trnTypes, search: sp.q }),
     listPartyOptions(),
+    getOpeningBalance(sp.from),
   ]);
   const totalValue = rows.reduce((a, r) => a + r.value, 0);
 
@@ -57,7 +59,7 @@ export default async function HistoryPage({
         <p className="mt-2 text-xs text-mute">Tip: search a party, tick their deliveries, then <b>Create bill</b> to club them into one slip.</p>
       </Card>
 
-      <HistoryGrid rows={rows} />
+      <HistoryGrid rows={rows} opening={opening} />
     </>
   );
 }
