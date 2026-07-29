@@ -168,7 +168,7 @@ export default function HistoryGrid({ rows, opening }: { rows: HistoryRow[]; ope
               <td className={cell}></td>
             </tr>
 
-            {rows.length === 0 && <tr><td className={`${cell} py-8 text-center text-mute`} colSpan={TOTAL_COLS}>No transactions in range.</td></tr>}
+            {rows.length === 0 && <tr><td className={`${cell} py-2 text-center text-mute`} colSpan={TOTAL_COLS}>No transactions in range.</td></tr>}
             {rows.map((r) => {
               const n = rowNums(r);
               return (
