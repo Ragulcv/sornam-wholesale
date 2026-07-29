@@ -514,7 +514,14 @@ export default function McxPriceTracker({ initialCurrent }: { initialCurrent: Cu
           </button>
           <span className="text-xs text-mute">{error ? `Error: ${error}` : `${rows.length} point${rows.length === 1 ? "" : "s"}`}</span>
         </div>
-        <PriceChart rows={rows} metal={metal} />
+        {loading && rows.length === 0 ? (
+          <div className="flex h-[300px] flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-line text-sm text-mute">
+            <span className="inline-block h-7 w-7 animate-spin rounded-full border-2 border-gold border-t-transparent" />
+            Loading price history…
+          </div>
+        ) : (
+          <PriceChart rows={rows} metal={metal} />
+        )}
       </Card>
     </>
   );
