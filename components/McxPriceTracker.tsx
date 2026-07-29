@@ -400,7 +400,7 @@ export default function McxPriceTracker({ initialCurrent }: { initialCurrent: Cu
                 </span>
                 <span className="text-[11px] uppercase tracking-[0.15em] text-white/30">MCX · INR</span>
               </div>
-              <span className="text-[11px] tabular-nums text-white/40">
+              <span className="text-[11px] tabular-nums text-white/40" suppressHydrationWarning>
                 {current ? <>Updated {timeLabel(current.updatedAt)}</> : "Connecting…"}
               </span>
             </div>

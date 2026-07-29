@@ -194,6 +194,10 @@ export default function LogimaxEntryForm({
     setPartyQuery(d.partyName ?? "");
     setTxnDate(new Date(d.txnDate).toISOString().slice(0, 10));
     setBarRate(d.barRate != null ? String(d.barRate) : "");
+    // Rate/Gm drives the pure↔cash reconciliation; it isn't persisted separately,
+    // so seed it from the bar rate (they match in the app's create flow). Without
+    // this a settled bill reloads as falsely "unsettled".
+    setRateGm(d.barRate != null ? String(d.barRate) : "");
     setRefNo(d.refNo ?? "");
     const toRow = (l: { particulars: string | null; weight: number; touch: number | null; rate: number }) =>
       ({ bookingId: null, particulars: l.particulars ?? "", weight: String(l.weight), touch: l.touch != null ? String(l.touch) : "", rate: String(l.rate) });
