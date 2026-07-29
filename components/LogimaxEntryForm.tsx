@@ -85,6 +85,7 @@ export default function LogimaxEntryForm({
   const [findNo, setFindNo] = useState("");
   const [history, setHistory] = useState<{ id: string; serialNo: number; trnType: string; date: string; gross: number }[]>([]);
   const [partyBal, setPartyBal] = useState<number | null>(null);
+  const [waUrl, setWaUrl] = useState<string | null>(null);
 
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
@@ -247,6 +248,8 @@ export default function LogimaxEntryForm({
     if (r.ok) {
       const sn = (r as { serialNo?: number }).serialNo;
       setStatus(editingId ? `Bill No. ${sn} updated.` : `Sucessfully Added.  (No. ${sn})`);
+      const wa = (r as { whatsappUrl?: string | null }).whatsappUrl;
+      if (wa) setWaUrl(wa);
       setEditingId(null);
       router.refresh();
     } else setError((r as { error?: string }).error ?? "Could not save.");
@@ -339,9 +342,37 @@ export default function LogimaxEntryForm({
         <input value={thru} onChange={(e) => setThru(e.target.value)} className={`${fld} w-full`} />
       </div>
 
+      {/* Party balance + recent bills (load a previous bill) — at the top (item #9, #16) */}
+      {party && (
+        <div className="mb-3 flex flex-wrap items-center gap-x-6 gap-y-1 border border-[#7f9db9] bg-[#f7f7f0] px-3 py-1.5 text-[12px]">
+          <span className="font-semibold">{party.name}</span>
+          <span>
+            Balance:{" "}
+            {partyBal == null ? <span className="text-[#666]">…</span>
+              : partyBal < -0.005 ? <span className="font-bold text-[#8b0000]">owes ₹{f2(Math.abs(partyBal))}</span>
+              : partyBal > 0.005 ? <span className="font-bold text-[#0a7a3f]">to receive ₹{f2(partyBal)}</span>
+              : <span className="font-bold">settled</span>}
+            <span className="ml-1 text-[#666]">· opening Pure {f3(opgPure)} / Cash ₹{f2(opgCash)}</span>
+          </span>
+          {history.length > 0 && (
+            <span className="flex min-w-0 items-center gap-2">
+              <span className="font-semibold text-[#333]">Recent:</span>
+              <span className="flex gap-2 overflow-x-auto">
+                {history.map((h) => (
+                  <button key={h.id} onClick={() => findBill(h.serialNo)}
+                    className="whitespace-nowrap rounded border border-[#ccd] bg-white px-2 py-0.5 hover:bg-[#eef]">
+                    No.{h.serialNo} · <span className="capitalize">{h.trnType}</span> · ₹{f2(h.gross)} <span className="text-[#3b6ea5] underline">load</span>
+                  </button>
+                ))}
+              </span>
+            </span>
+          )}
+        </div>
+      )}
+
       <div className="grid gap-6 lg:grid-cols-2">
         {/* LEFT: sales + sales return */}
-        <div>
+        <div className="min-w-0">
           <div className="mb-1 text-[14px] font-bold">SALES</div>
           <DraftRow
             row={saleDraft} setRow={setSaleDraft} onAdd={addSale} enterAdds={enterAdds(addSale)}
@@ -358,7 +389,7 @@ export default function LogimaxEntryForm({
         </div>
 
         {/* RIGHT: metal receipts/payments + reconciliation */}
-        <div>
+        <div className="min-w-0">
           <div className="mb-1 text-[14px] font-bold">METAL RECEIPTS / PAYMENTS</div>
           <div className="mb-1 grid grid-cols-[1fr_70px_60px_60px_auto] gap-1">
             <input placeholder="Particulars" value={moveDraft.particulars} onChange={(e) => setMoveDraft({ ...moveDraft, particulars: e.target.value })} className={fld} onKeyDown={enterAdds(addMove)} />
@@ -432,47 +463,26 @@ export default function LogimaxEntryForm({
             <input readOnly value={f3(recon.closingPure)} className={`${roFld} ${num} bg-[#fbf6cf]`} />
             <input readOnly value={f2(recon.closingCash)} className={`${roFld} ${num} bg-[#fbf6cf]`} />
           </div>
-          {party && (
-            <div className="mt-3 border border-[#7f9db9] bg-[#f7f7f0] px-2 py-2 text-[12px]">
-              <div className="font-semibold">{party.name}</div>
-              <div className="mt-0.5">
-                Balance:{" "}
-                {partyBal == null ? (
-                  <span className="text-[#666]">…</span>
-                ) : partyBal < -0.005 ? (
-                  <span className="font-bold text-[#8b0000]">owes ₹{f2(Math.abs(partyBal))}</span>
-                ) : partyBal > 0.005 ? (
-                  <span className="font-bold text-[#0a7a3f]">to receive ₹{f2(partyBal)}</span>
-                ) : (
-                  <span className="font-bold">settled</span>
-                )}
-                <span className="ml-1 text-[#666]">· opening Pure {f3(opgPure)} / Cash ₹{f2(opgCash)}</span>
-              </div>
-              {history.length > 0 && (
-                <div className="mt-2">
-                  <div className="mb-0.5 font-semibold text-[#333]">Recent bills</div>
-                  <div className="max-h-32 overflow-auto border border-[#ddd] bg-white">
-                    <table className="w-full text-[11px]">
-                      <tbody>
-                        {history.map((h) => (
-                          <tr key={h.id} className="border-b border-[#eee]">
-                            <td className="px-1 py-0.5 text-[#666]">No. {h.serialNo}</td>
-                            <td className="px-1 py-0.5 capitalize">{h.trnType}</td>
-                            <td className="px-1 py-0.5">{h.date}</td>
-                            <td className="px-1 py-0.5 text-right tabular-nums">₹{f2(h.gross)}</td>
-                            <td className="px-1 py-0.5 text-right"><button className="text-[#3b6ea5] underline" onClick={() => findBill(h.serialNo)}>load</button></td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
         </div>
       </div>
       {operatorName && <div className="mt-4 text-right text-[11px] text-[#888]">Operator: {operatorName}</div>}
+
+      {/* WhatsApp confirmation popup after saving a sale/purchase */}
+      {waUrl && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setWaUrl(null)}>
+          <div className="w-full max-w-xs rounded-xl bg-white p-5 text-center shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-full bg-[#e7f8ee]">
+              <svg viewBox="0 0 24 24" className="h-6 w-6" fill="#25D366"><path d="M12 2a10 10 0 0 0-8.6 15l-1.4 5 5.1-1.3A10 10 0 1 0 12 2Zm0 18a8 8 0 0 1-4.1-1.1l-.3-.2-3 .8.8-2.9-.2-.3A8 8 0 1 1 12 20Z" /></svg>
+            </div>
+            <div className="text-[15px] font-semibold text-black">Entry saved</div>
+            <div className="mt-1 text-[13px] text-[#555]">Send the confirmation to the customer on WhatsApp?</div>
+            <div className="mt-4 flex flex-col gap-2">
+              <a href={waUrl} target="_blank" rel="noopener noreferrer" onClick={() => setWaUrl(null)} className="rounded-lg bg-[#25D366] px-4 py-2.5 text-[14px] font-bold text-white">Send WhatsApp</a>
+              <button onClick={() => setWaUrl(null)} className="rounded-lg border border-[#ccc] px-4 py-2 text-[13px] font-semibold text-[#555]">Not now</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -513,7 +523,8 @@ function LineGrid({
     ? ["S.No", "Bookings", "Particulars", "Weight", "Net.Wg", "Touch", "Pure", "Rate", "Tot.Amt", "Del"]
     : ["S.No", "Particulars", "Weight", "Net.Wg", "Touch", "Pure", "Rate", "Tot.Amt", "Del"];
   return (
-    <table className="w-full border-collapse">
+    <div className="overflow-x-auto">
+    <table className="w-full min-w-[520px] border-collapse">
       <thead>
         <tr>{cols.map((c) => <th key={c} className={th}>{c}</th>)}</tr>
       </thead>
@@ -547,5 +558,6 @@ function LineGrid({
         </tr>
       </tbody>
     </table>
+    </div>
   );
 }
