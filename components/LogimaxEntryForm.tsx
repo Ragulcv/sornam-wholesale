@@ -204,23 +204,26 @@ export default function LogimaxEntryForm({
 
   return (
     <div className="min-h-screen bg-white px-4 py-3 text-black">
-      {/* menu bar */}
-      <div className="mb-2 flex items-center gap-6 border-2 border-[#1f3864] px-3 py-1 text-[13px] font-semibold">
-        <span>Master ▸</span><span>Transaction ▸</span><span>Report ▸</span><span className="ml-auto">Logout</span>
+      {/* Sales/Purchase + metal toggles + title (real menu bar removed — those were non-functional) */}
+      <div className="mb-2 flex flex-wrap items-center gap-3">
+        <div className="flex gap-1">
+          {(["sales", "purchase"] as const).map((t) => (
+            <button key={t} onClick={() => setTrnType(t)} className={`rounded-[3px] border px-3 py-[3px] text-[13px] font-semibold capitalize ${trnType === t ? "border-[#31797a] bg-[#31797a] text-white" : "border-[#adadad] bg-[#ececec] text-black"}`}>{t}</button>
+          ))}
+        </div>
+        <div className="flex gap-1">
+          {(["gold", "silver"] as const).map((m) => (
+            <button key={m} onClick={() => setMetal(m)} className={`rounded-[3px] border px-3 py-[3px] text-[13px] font-semibold capitalize ${metal === m ? "border-[#8a6d10] bg-[#f5edd2] text-[#8a6d10]" : "border-[#adadad] bg-[#ececec] text-black"}`}>{m}</button>
+          ))}
+        </div>
+        <div className="ml-auto text-[15px] font-bold tracking-wide">{title}</div>
       </div>
-      <div className="mb-2 text-center text-[15px] font-bold tracking-wide">{title}</div>
 
-      {/* toolbar */}
-      <div className="mb-1 flex flex-wrap items-start gap-2">
-        <button className={btn} onClick={clearAll}>Add</button>
+      {/* toolbar — functional actions only (Find/Edit/Print arrive with items 3/16) */}
+      <div className="mb-1 flex flex-wrap items-center gap-2">
+        <button className={btn} onClick={clearAll} title="New / clear the form">Add</button>
         <button className={btn} onClick={save} disabled={saving}>{saving ? "Saving…" : "Save"}</button>
         <button className={btn} onClick={clearAll}>Cancel</button>
-        <button className={btn} onClick={() => setTrnType((t) => (t === "sales" ? "purchase" : "sales"))}>Edit</button>
-        <button className={btn}>Delete</button>
-        <button className={btn}>Find</button>
-        <button className={btn}>Print</button>
-        <button className={btn}>Report</button>
-        <textarea className="ml-2 h-[52px] min-w-[280px] flex-1 border border-[#7f9db9] bg-[#f0f0f0] px-2 text-[13px]" readOnly value={status ?? ""} />
       </div>
       {status && <div className="mb-2 text-[13px] font-semibold text-[#8b0000]">{status}</div>}
       {error && <div className="mb-2 text-[13px] font-semibold text-[#8b0000]">{error}</div>}
