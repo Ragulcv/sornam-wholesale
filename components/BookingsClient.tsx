@@ -130,7 +130,7 @@ export default function BookingsClient({
         <Card className="mb-4 flex items-center justify-between gap-3 border-[#cde9d8] bg-[#eaf6ef] p-4">
           <span className="text-sm font-semibold text-pos">Booking #{String(result.serialNo).padStart(4, "0")} saved.</span>
           <div className="flex gap-2">
-            {result.whatsappUrl && <a href={result.whatsappUrl} target="_blank" rel="noopener noreferrer" className="rounded-lg bg-[#25D366] px-3 py-1.5 text-xs font-bold text-white">Send WhatsApp</a>}
+            {result.whatsappUrl && <a href={result.whatsappUrl} target="_blank" rel="noopener noreferrer" onClick={() => setResult(null)} className="rounded-lg bg-[#25D366] px-3 py-1.5 text-xs font-bold text-white">Send WhatsApp</a>}
             <button onClick={() => setResult(null)} className="rounded-lg border border-line bg-pearl px-3 py-1.5 text-xs font-semibold text-mid">Dismiss</button>
           </div>
         </Card>
@@ -299,7 +299,7 @@ function DeliverModal({ booking, onClose, onDone }: { booking: BookingRow; onClo
                 )}
               </div>
             )}
-            {wa && <a href={wa} target="_blank" rel="noopener noreferrer" className="rounded-xl bg-[#25D366] px-4 py-3 text-center font-bold text-white">Send delivered WhatsApp</a>}
+            {wa && <a href={wa} target="_blank" rel="noopener noreferrer" onClick={onDone} className="rounded-xl bg-[#25D366] px-4 py-3 text-center font-bold text-white">Send delivered WhatsApp</a>}
             <button onClick={onDone} className="gold-grad rounded-xl px-4 py-2.5 text-sm font-bold text-onyx">Done</button>
           </div>
         )}

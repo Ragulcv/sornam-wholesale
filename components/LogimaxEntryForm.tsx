@@ -20,8 +20,9 @@ type BookingOpt = { id: string; label: string };
 const nn = (s: string) => parseFloat(s) || 0;
 const f3 = (n: number) => n.toFixed(3);
 const f2 = (n: number) => n.toFixed(2);
-const blankSale = (): SaleRow => ({ bookingId: null, particulars: "", weight: "", touch: "", rate: "0" });
+const blankSale = (): SaleRow => ({ bookingId: null, particulars: "Gold pure", weight: "", touch: "", rate: "0" });
 const blankMove = (): MoveRow => ({ particulars: "", weight: "", touch: "", aTouch: "" });
+const ITEM_OPTS = ["Gold pure", "Silver pure", "Gold bar", "Silver bar", "Coin", "Old gold", "Ornament"];
 
 // ---- legacy visual tokens (match the original webforms look) ----
 const btn =
@@ -82,11 +83,11 @@ export default function LogimaxEntryForm({
 
   // edit-existing (items #3, #16) + party balance (#9)
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [editSerial, setEditSerial] = useState<number | null>(null);
   const [findNo, setFindNo] = useState("");
   const [history, setHistory] = useState<{ id: string; serialNo: number; trnType: string; date: string; gross: number }[]>([]);
   const [partyBal, setPartyBal] = useState<number | null>(null);
   const [waUrl, setWaUrl] = useState<string | null>(null);
-  const [confirmUnsettled, setConfirmUnsettled] = useState(false);
 
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
@@ -188,6 +189,7 @@ export default function LogimaxEntryForm({
     if (!r.ok) { setError(r.error); return; }
     const d = r.detail;
     setEditingId(d.id);
+    setEditSerial(d.serialNo);
     setTrnType(d.trnType === "purchase" ? "purchase" : "sales");
     setMetal(d.metal);
     setPartyId(d.partyId);
@@ -216,7 +218,7 @@ export default function LogimaxEntryForm({
     setSales([]); setReturns([]); setMoves([]); setSaleDraft(blankSale()); setReturnDraft(blankSale()); setMoveDraft(blankMove());
     setIntDisPure("0"); setIntDisCash("0"); setMcCashRecd(""); setBankRecd(""); setConversion("cash"); setCashBankRecd("0");
     setDiscPure("0"); setDiscCash("0"); setStatus(null); setError(null);
-    setEditingId(null); setFindNo("");
+    setEditingId(null); setEditSerial(null); setFindNo("");
     nameRef.current?.focus();
   }
 
@@ -224,23 +226,22 @@ export default function LogimaxEntryForm({
     setError(null); setStatus(null);
     if (sales.length === 0 && returns.length === 0) { setError("Add at least one Sales or Sales Return row."); return; }
 
-    // Accounting integrity: a bill must actually move money or metal — no empty ₹0 records.
+    // Only block a truly-empty ₹0 bill (no value at all). Credit sales (no cash/bank
+    // now, settle later) ARE allowed — the balance is carried to the customer's account.
     const billValue = round2(saleT.amt + retT.amt);
     const cashMoved = nn(mcCashRecd) + nn(cashBankRecd) + nn(bankRecd);
     const metalMoved = moveTotals.wt;
     if (billValue <= 0 && cashMoved <= 0 && metalMoved <= 0) {
-      setError("This bill has no value. Enter a Rate on the items (so it has an amount), or record cash / bank received, or metal received in exchange — an empty ₹0 bill can't be saved.");
+      setError("This bill has no value. Enter a Rate on the items, or record cash / bank / metal — an empty ₹0 bill can't be saved.");
       return;
     }
-    // Any unsettled balance must be carried to a named customer's account (credit).
+    // A credit (unsettled) bill must map to a named customer so the balance has an owner.
     const unsettled = Math.abs(recon.closingCash) > 0.005 || Math.abs(recon.closingPure) > 0.005;
     const hasParty = !!party || !!partyQuery.trim();
     if (unsettled && !hasParty) {
-      setError("This bill isn't fully settled — pick or type the customer so the outstanding balance is carried to their account.");
+      setError("This bill leaves a balance — pick or type the customer so the credit maps to their account.");
       return;
     }
-    if (unsettled && !confirmUnsettled) { setConfirmUnsettled(true); return; }
-    setConfirmUnsettled(false);
     setSaving(true);
     const saleKind = (trnType === "sales" ? "sale" : "purchase") as "sale" | "purchase";
     const retKind = (trnType === "sales" ? "sale_return" : "purchase_return") as "sale_return" | "purchase_return";
@@ -282,6 +283,7 @@ export default function LogimaxEntryForm({
 
   return (
     <div className="min-h-screen bg-white px-4 py-3 text-black">
+      <datalist id="item-opts">{ITEM_OPTS.map((o) => <option key={o} value={o} />)}</datalist>
       {/* Sales/Purchase + metal toggles + title (real menu bar removed — those were non-functional) */}
       <div className="mb-2 flex flex-wrap items-center gap-3">
         <div className="flex gap-1">
@@ -306,7 +308,8 @@ export default function LogimaxEntryForm({
           <input value={findNo} onChange={(e) => setFindNo(e.target.value)} placeholder="Bill No." className={`${fld} ${num} w-20`} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); findBill(); } }} />
           <button className={btn} onClick={() => findBill()}>Find</button>
         </span>
-        {editingId && <span className="text-[12px] font-semibold text-[#8b0000]">● editing existing bill</span>}
+        <span className="ml-1 text-[12px] text-[#555]">Bill No. <b className="text-black">{editSerial ?? "New (auto)"}</b></span>
+        {editingId && <span className="text-[12px] font-semibold text-[#8b0000]">● editing</span>}
       </div>
       {status && <div className="mb-2 text-[13px] font-semibold text-[#8b0000]">{status}</div>}
       {error && <div className="mb-2 text-[13px] font-semibold text-[#8b0000]">{error}</div>}
@@ -321,8 +324,17 @@ export default function LogimaxEntryForm({
             onChange={(e) => { setPartyQuery(e.target.value); setPartyId(null); setShowParties(true); }}
             onFocus={() => setShowParties(true)}
             onBlur={() => setTimeout(() => setShowParties(false), 150)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                // Enter picks the top match, or accepts the typed name as a new customer
+                // (created on save). Either way the customer is set for this bill.
+                if (matches.length > 0 && !party) { setPartyId(matches[0].id); setPartyQuery(matches[0].name); }
+                setShowParties(false);
+              }
+            }}
             className={`${fld} w-full`}
-            placeholder="party"
+            placeholder="type customer — Enter to add"
             autoComplete="off"
           />
           {showParties && matches.length > 0 && (
@@ -461,6 +473,15 @@ export default function LogimaxEntryForm({
             <span className={lbl}>Bank Recd</span>
             <input inputMode="decimal" value={bankRecd} onChange={(e) => setBankRecd(e.target.value)} className={`${fld} ${num}`} />
           </div>
+          {/* one-click: fill Cash Recd with the outstanding so the bill settles to zero */}
+          <button
+            type="button"
+            onClick={() => setMcCashRecd(String(round2(nn(mcCashRecd) - recon.closingCash)))}
+            className={`${btn} mt-2`}
+            title="Put the full remaining bill amount into M.C. Cash Recd."
+          >
+            ⤵ Receive full amount in cash{Math.abs(recon.closingCash) > 0.005 ? ` (₹${f2(Math.abs(round2(nn(mcCashRecd) - recon.closingCash)))})` : ""}
+          </button>
 
           {/* Pure / Cash reconciliation grid */}
           <div className="mt-4 grid grid-cols-[110px_120px_120px] items-center gap-x-3 gap-y-2 text-[13px]">
@@ -489,26 +510,6 @@ export default function LogimaxEntryForm({
         </div>
       </div>
       {operatorName && <div className="mt-4 text-right text-[11px] text-[#888]">Operator: {operatorName}</div>}
-
-      {/* Unsettled-bill confirmation — the balance is carried to the customer's account */}
-      {confirmUnsettled && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setConfirmUnsettled(false)}>
-          <div className="w-full max-w-sm rounded-xl bg-white p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
-            <div className="text-[15px] font-semibold text-black">Bill not fully settled</div>
-            <div className="mt-2 text-[13px] text-[#555]">The closing balance isn&apos;t zero — this will be carried to <b>{party?.name ?? partyQuery}</b>&apos;s account:</div>
-            <ul className="mt-2 space-y-1 text-[13px]">
-              {Math.abs(recon.closingCash) > 0.005 && (
-                <li>Cash: {recon.closingCash < 0 ? <b className="text-[#8b0000]">customer owes ₹{f2(Math.abs(recon.closingCash))}</b> : <b className="text-[#0a7a3f]">to receive ₹{f2(recon.closingCash)}</b>}</li>
-              )}
-              {Math.abs(recon.closingPure) > 0.005 && <li>Pure metal: <b>{f3(recon.closingPure)} g outstanding</b></li>}
-            </ul>
-            <div className="mt-4 flex gap-2">
-              <button onClick={save} disabled={saving} className="flex-1 rounded-lg bg-onyx px-4 py-2.5 text-[14px] font-bold text-gold-hi disabled:opacity-50">Save as credit</button>
-              <button onClick={() => setConfirmUnsettled(false)} className="rounded-lg border border-[#ccc] px-4 py-2 text-[13px] font-semibold text-[#555]">Go back</button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* WhatsApp confirmation popup after saving a sale/purchase */}
       {waUrl && (
@@ -546,7 +547,7 @@ function DraftRow({
           {bookings.map((b) => <option key={b.id} value={b.id}>{b.label}</option>)}
         </select>
       )}
-      <input placeholder="Items" value={row.particulars} onChange={(e) => setRow({ ...row, particulars: e.target.value })} className={fld2} onKeyDown={enterAdds} />
+      <input list="item-opts" placeholder="Items" value={row.particulars} onChange={(e) => setRow({ ...row, particulars: e.target.value })} className={fld2} onKeyDown={enterAdds} />
       <input placeholder="Weight" inputMode="decimal" value={row.weight} onChange={(e) => setRow({ ...row, weight: e.target.value })} className={`${fld2} text-right`} onKeyDown={enterAdds} />
       <input placeholder="Touch" inputMode="decimal" value={row.touch} onChange={(e) => setRow({ ...row, touch: e.target.value })} className={`${fld2} text-right`} onKeyDown={enterAdds} />
       <input placeholder="Rate" inputMode="decimal" value={row.rate} onChange={(e) => setRow({ ...row, rate: e.target.value })} className={`${fld2} text-right`} onKeyDown={enterAdds} />
