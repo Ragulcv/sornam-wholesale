@@ -5,6 +5,7 @@ import { listPartyOptions } from "@/lib/queries/parties";
 import { PageHeader, Card } from "@/components/ui";
 import { fmtMoney } from "@/lib/format";
 import HistoryGrid from "@/components/HistoryGrid";
+import HistoryTypeFilter from "@/components/HistoryTypeFilter";
 
 export const dynamic = "force-dynamic";
 
@@ -43,11 +44,7 @@ export default async function HistoryPage({
           <label className="text-xs text-mute">From<input type="date" name="from" defaultValue={sp.from} className="mt-1 block rounded-md border border-line bg-cream px-2 py-1.5 text-sm" /></label>
           <label className="text-xs text-mute">To<input type="date" name="to" defaultValue={sp.to} className="mt-1 block rounded-md border border-line bg-cream px-2 py-1.5 text-sm" /></label>
           <div className="text-xs text-mute">Type
-            <div className="mt-1 flex gap-3">
-              {TYPES.map((t) => (
-                <label key={t} className="flex items-center gap-1 text-sm capitalize text-ink"><input type="checkbox" name="type" value={t} defaultChecked={typeParam.includes(t)} /> {t}</label>
-              ))}
-            </div>
+            <HistoryTypeFilter selected={trnTypes} />
           </div>
           <label className="text-xs text-mute">Party
             <input name="q" defaultValue={sp.q} list="party-suggest" autoComplete="off" placeholder="type to suggest" className="mt-1 block rounded-md border border-line bg-cream px-2 py-1.5 text-sm" />

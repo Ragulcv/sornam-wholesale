@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getTransaction } from "@/lib/queries/transactions";
 import { Card } from "@/components/ui";
+import AutoPrint from "@/components/AutoPrint";
 import { fmtMoney, fmtWeight, fmtRate, fmtTouch, fmtDate, metalLabel, payModeLabel } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
@@ -9,13 +10,21 @@ export const dynamic = "force-dynamic";
 const th = "px-2 py-1.5 text-left text-[11px] font-semibold uppercase text-mute";
 const td = "px-2 py-1.5 text-[13px]";
 
-export default async function TxnDetailPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function TxnDetailPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ auto?: string }>;
+}) {
   const { id } = await params;
+  const { auto } = await searchParams;
   const t = await getTransaction(id);
   if (!t) notFound();
 
   return (
     <div className="mx-auto max-w-3xl">
+      {auto === "1" && <AutoPrint />}
       <div className="no-print mb-4 flex items-center justify-between">
         <Link href="/history" className="text-sm text-mute hover:text-ink">← History</Link>
         <span className="text-xs text-mute">Print with your browser (Ctrl/Cmd + P)</span>

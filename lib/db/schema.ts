@@ -135,6 +135,7 @@ export const bookings = pgTable("bookings", {
   partyId: uuid("party_id")
     .notNull()
     .references(() => parties.id, { onDelete: "restrict" }),
+  trnType: trnTypeEnum("trn_type").notNull().default("sales"), // sales (we sell) | purchase (we buy)
   metal: metalEnum("metal").notNull(),
   bookMode: bookModeEnum("book_mode").notNull(),
   weightBooked: numeric("weight_booked", { precision: 12, scale: 3 }),

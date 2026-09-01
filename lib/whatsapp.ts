@@ -28,28 +28,29 @@ export function buildSalesWhatsapp(
   ]);
 }
 
-// Booking confirmation — adapts to metal-grams vs amount (#7).
+// Booking confirmation — always shows booked value + locked rate + pending
+// gold together, however the booking was entered (by grams or by amount).
 export function buildBookingWhatsapp(
   phone: string,
   d: {
     partyName: string;
+    trnType?: "sales" | "purchase";
     metal: string;
     bookMode: "metal" | "amount";
     weight?: number;
     rate?: number;
     amount?: number;
-    advance?: number;
   },
 ): string {
-  const lines = [`Namaste ${d.partyName},`, ``, `Your booking is confirmed:`];
-  if (d.bookMode === "metal") {
-    lines.push(`• ${metalLabel(d.metal)} bar: ${fmtWeight(d.weight ?? 0)}`);
-    if (d.rate) lines.push(`• Rate (locked): ${fmtRate(d.rate)}/g`);
-  } else {
-    lines.push(`• Amount booked: ${fmtMoney(d.amount ?? 0)}`);
-    lines.push(`• ${metalLabel(d.metal)} — to be converted at delivery`);
-  }
-  if (d.advance && d.advance > 0) lines.push(`• Advance received: ${fmtMoney(d.advance)}`);
+  const rate = d.rate ?? 0;
+  const weight = d.bookMode === "metal" ? d.weight ?? 0 : rate > 0 ? (d.amount ?? 0) / rate : 0;
+  const value = d.bookMode === "amount" ? d.amount ?? 0 : rate > 0 ? (d.weight ?? 0) * rate : 0;
+
+  const intro = d.trnType === "purchase" ? "Your sale to us is booked:" : "Your booking is confirmed:";
+  const lines = [`Namaste ${d.partyName},`, ``, intro];
+  if (value > 0) lines.push(`• Booked value: ${fmtMoney(value)}`);
+  if (rate > 0) lines.push(`• Rate (locked): ${fmtRate(rate)}/g`);
+  if (weight > 0) lines.push(`• Pending ${metalLabel(d.metal)}: ${fmtWeight(weight)}`);
   lines.push(``, `Thank you.`);
   return url(phone, lines);
 }

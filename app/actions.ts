@@ -297,12 +297,12 @@ export interface BookingActionInput {
   partyId?: string | null;
   partyName?: string;
   partyPhone?: string;
+  trnType: "sales" | "purchase";
   metal: Metal;
   bookMode: BookMode;
   weightBooked?: number | null;
   lockedRate?: number | null;
   amount?: number | null;
-  advancePaid?: number;
   notes?: string;
 }
 
@@ -325,12 +325,12 @@ export async function createBookingAction(input: BookingActionInput): Promise<Ac
   const whatsappUrl = input.partyPhone
     ? buildBookingWhatsapp(input.partyPhone, {
         partyName: input.partyName || "Customer",
+        trnType: input.trnType,
         metal: input.metal,
         bookMode: input.bookMode,
         weight: input.weightBooked ?? undefined,
         rate: input.lockedRate ?? undefined,
         amount: input.amount ?? undefined,
-        advance: input.advancePaid,
       })
     : null;
   return { ok: true, id, serialNo, whatsappUrl };

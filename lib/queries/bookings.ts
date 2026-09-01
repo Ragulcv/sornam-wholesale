@@ -13,6 +13,7 @@ export interface BookingRow {
   partyId: string;
   partyName: string | null;
   partyPhone: string | null;
+  trnType: "sales" | "purchase";
   metal: Metal;
   bookMode: BookMode;
   weightBooked: number | null;
@@ -26,6 +27,7 @@ export interface BookingRow {
 
 export async function createBooking(input: {
   partyId: string;
+  trnType: "sales" | "purchase";
   metal: Metal;
   bookMode: BookMode;
   weightBooked?: number | null;
@@ -39,6 +41,7 @@ export async function createBooking(input: {
     .insert(bookings)
     .values({
       partyId: input.partyId,
+      trnType: input.trnType,
       metal: input.metal,
       bookMode: input.bookMode,
       weightBooked: input.weightBooked != null ? String(input.weightBooked) : null,
@@ -67,6 +70,7 @@ export async function listBookings(filter?: {
     partyId: b.partyId,
     partyName: pName,
     partyPhone: pPhone,
+    trnType: b.trnType === "purchase" ? "purchase" : "sales",
     metal: b.metal,
     bookMode: b.bookMode,
     weightBooked: b.weightBooked == null ? null : num(b.weightBooked),
@@ -98,7 +102,7 @@ export async function deliverBooking(
   const bk = (await db.select().from(bookings).where(eq(bookings.id, id)))[0];
   if (!bk) throw new Error("Booking not found");
   const txn = await createTransaction({
-    trnType: "sales",
+    trnType: bk.trnType === "purchase" ? "purchase" : "sales",
     partyId: bk.partyId,
     metal: input.metal,
     barRate: input.barRate,

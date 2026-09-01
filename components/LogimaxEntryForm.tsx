@@ -88,6 +88,7 @@ export default function LogimaxEntryForm({
   const [history, setHistory] = useState<{ id: string; serialNo: number; trnType: string; date: string; gross: number }[]>([]);
   const [partyBal, setPartyBal] = useState<number | null>(null);
   const [waUrl, setWaUrl] = useState<string | null>(null);
+  const [lastSavedId, setLastSavedId] = useState<string | null>(null);
 
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
@@ -211,6 +212,7 @@ export default function LogimaxEntryForm({
     setMcCashRecd(cashR ? String(cashR) : "");
     setBankRecd(bankR ? String(bankR) : "");
     setStatus(`Editing bill No. ${d.serialNo}`);
+    setLastSavedId(d.id);
   }
 
   function clearAll() {
@@ -218,7 +220,7 @@ export default function LogimaxEntryForm({
     setSales([]); setReturns([]); setMoves([]); setSaleDraft(blankSale()); setReturnDraft(blankSale()); setMoveDraft(blankMove());
     setIntDisPure("0"); setIntDisCash("0"); setMcCashRecd(""); setBankRecd(""); setConversion("cash"); setCashBankRecd("0");
     setDiscPure("0"); setDiscCash("0"); setStatus(null); setError(null);
-    setEditingId(null); setEditSerial(null); setFindNo("");
+    setEditingId(null); setEditSerial(null); setFindNo(""); setLastSavedId(null);
     nameRef.current?.focus();
   }
 
@@ -228,10 +230,12 @@ export default function LogimaxEntryForm({
 
     // Only block a truly-empty ₹0 bill (no value at all). Credit sales (no cash/bank
     // now, settle later) ARE allowed — the balance is carried to the customer's account.
+    // A genuinely NEGATIVE bill value (e.g. returns outweigh sales) is a real value,
+    // not an empty one, so it must still save and show up in history.
     const billValue = round2(saleT.amt + retT.amt);
     const cashMoved = nn(mcCashRecd) + nn(cashBankRecd) + nn(bankRecd);
     const metalMoved = moveTotals.wt;
-    if (billValue <= 0 && cashMoved <= 0 && metalMoved <= 0) {
+    if (Math.abs(billValue) < 0.005 && cashMoved <= 0 && metalMoved <= 0) {
       setError("This bill has no value. Enter a Rate on the items, or record cash / bank / metal — an empty ₹0 bill can't be saved.");
       return;
     }
@@ -267,6 +271,7 @@ export default function LogimaxEntryForm({
         { mode: "bank" as const, direction: "received" as const, amount: nn(bankRecd) },
       ].filter((s) => s.amount > 0),
     };
+    const savingExistingId = editingId;
     const r = editingId ? await updateBillAction(editingId, input) : await createTransactionAction(input);
     setSaving(false);
     if (r.ok) {
@@ -274,6 +279,7 @@ export default function LogimaxEntryForm({
       setStatus(editingId ? `Bill No. ${sn} updated.` : `Sucessfully Added.  (No. ${sn})`);
       const wa = (r as { whatsappUrl?: string | null }).whatsappUrl;
       if (wa) setWaUrl(wa);
+      setLastSavedId(savingExistingId ?? (r as { id?: string }).id ?? null);
       setEditingId(null);
       router.refresh();
     } else setError((r as { error?: string }).error ?? "Could not save.");
@@ -304,6 +310,9 @@ export default function LogimaxEntryForm({
         <button className={btn} onClick={clearAll} title="New / clear the form">Add</button>
         <button className={btn} onClick={save} disabled={saving}>{saving ? "Saving…" : editingId ? "Update" : "Save"}</button>
         <button className={btn} onClick={clearAll}>Cancel</button>
+        {lastSavedId && (
+          <a className={btn} href={`/history/${lastSavedId}?auto=1`} target="_blank" rel="noopener noreferrer" title="Print this bill">Print</a>
+        )}
         <span className="ml-2 flex items-center gap-1">
           <input value={findNo} onChange={(e) => setFindNo(e.target.value)} placeholder="Bill No." className={`${fld} ${num} w-20`} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); findBill(); } }} />
           <button className={btn} onClick={() => findBill()}>Find</button>
@@ -522,6 +531,9 @@ export default function LogimaxEntryForm({
             <div className="mt-1 text-[13px] text-[#555]">Send the confirmation to the customer on WhatsApp?</div>
             <div className="mt-4 flex flex-col gap-2">
               <a href={waUrl} target="_blank" rel="noopener noreferrer" onClick={() => setWaUrl(null)} className="rounded-lg bg-[#25D366] px-4 py-2.5 text-[14px] font-bold text-white">Send WhatsApp</a>
+              {lastSavedId && (
+                <a href={`/history/${lastSavedId}?auto=1`} target="_blank" rel="noopener noreferrer" onClick={() => setWaUrl(null)} className="rounded-lg border border-[#ccc] px-4 py-2 text-[13px] font-semibold text-[#333]">Print bill</a>
+              )}
               <button onClick={() => setWaUrl(null)} className="rounded-lg border border-[#ccc] px-4 py-2 text-[13px] font-semibold text-[#555]">Not now</button>
             </div>
           </div>
