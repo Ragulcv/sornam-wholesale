@@ -73,13 +73,15 @@ export default function ExpensesClient({ expenses, parties }: { expenses: Expens
       <Card className="divide-y divide-line2">
         {expenses.length === 0 && <div className="px-4 py-8 text-center text-sm text-mute">No expenses yet.</div>}
         {expenses.map((e) => (
-          <div key={e.id} className="flex items-center gap-3 px-4 py-3">
-            <span className="num w-12 text-xs font-semibold text-gold-deep">#{String(e.serialNo).padStart(4, "0")}</span>
-            <span className="w-24 text-xs text-mute">{fmtDate(e.date)}</span>
+          <div key={e.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-3">
+            <span className="num w-12 shrink-0 text-xs font-semibold text-gold-deep">#{String(e.serialNo).padStart(4, "0")}</span>
+            <span className="w-20 shrink-0 text-xs text-mute">{fmtDate(e.date)}</span>
             <span className="min-w-0 flex-1 truncate text-sm text-ink">{e.party ?? "—"}</span>
-            <span className="text-xs text-mute">{e.cash > 0 && `cash ${fmtMoney(e.cash)}`} {e.bank > 0 && `bank ${fmtMoney(e.bank)}`}</span>
-            <span className="num w-28 text-right font-semibold text-ink">{fmtMoney(e.cash + e.bank)}</span>
-            <button onClick={async () => { await deleteTransactionAction(e.id); router.refresh(); }} className="rounded-lg border border-line bg-pearl px-2 py-1 text-xs text-mute hover:border-[#f1c9c4] hover:text-neg">Del</button>
+            <span className="num w-24 shrink-0 text-right font-semibold text-ink sm:w-28">{fmtMoney(e.cash + e.bank)}</span>
+            <button onClick={async () => { await deleteTransactionAction(e.id); router.refresh(); }} className="shrink-0 rounded-lg border border-line bg-pearl px-2 py-1 text-xs text-mute hover:border-[#f1c9c4] hover:text-neg">Del</button>
+            {(e.cash > 0 || e.bank > 0) && (
+              <span className="order-last w-full text-xs text-mute">{e.cash > 0 && `cash ${fmtMoney(e.cash)}`}{e.cash > 0 && e.bank > 0 && " · "}{e.bank > 0 && `bank ${fmtMoney(e.bank)}`}</span>
+            )}
           </div>
         ))}
       </Card>

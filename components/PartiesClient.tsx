@@ -95,12 +95,12 @@ export default function PartiesClient({ parties }: { parties: PartyRow[] }) {
       <Card className="divide-y divide-line2">
         {parties.length === 0 && <div className="px-4 py-8 text-center text-sm text-mute">No parties yet.</div>}
         {parties.map((p) => (
-          <div key={p.id} className="flex items-center gap-3 px-4 py-3 transition hover:bg-cream">
+          <div key={p.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-3 transition hover:bg-cream">
             <Check checked={sel.isSelected(p.id)} onChange={() => sel.toggle(p.id)} />
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
-                <span className="truncate font-medium text-ink">{p.name}</span>
-                <span className="rounded bg-cream px-1.5 py-0.5 text-[10px] font-semibold uppercase text-mute">{p.type}</span>
+                <span className="min-w-0 flex-1 truncate font-medium text-ink">{p.name}</span>
+                <span className="shrink-0 rounded bg-cream px-1.5 py-0.5 text-[10px] font-semibold uppercase text-mute">{p.type}</span>
               </div>
               <div className="text-xs text-mute">
                 {p.phone ?? "no phone"}
@@ -108,8 +108,8 @@ export default function PartiesClient({ parties }: { parties: PartyRow[] }) {
                 {p.openingCash > 0 && ` · ${fmtMoney(p.openingCash)}`}
               </div>
             </div>
-            <span className="text-[11px] text-mute">{p.txnCount} txn · {p.bookingCount} bkg</span>
-            <button onClick={() => { setEditId(p.id); window.scrollTo({ top: 0, behavior: "smooth" }); }} className="rounded-lg border border-line bg-pearl px-2.5 py-1.5 text-xs font-semibold text-ink hover:bg-cream">Edit</button>
+            <span className="order-last w-full text-[11px] text-mute sm:order-none sm:w-auto sm:shrink-0">{p.txnCount} txn · {p.bookingCount} bkg</span>
+            <button onClick={() => { setEditId(p.id); window.scrollTo({ top: 0, behavior: "smooth" }); }} className="shrink-0 rounded-lg border border-line bg-pearl px-2.5 py-1.5 text-xs font-semibold text-ink hover:bg-cream">Edit</button>
             <PartyDelete id={p.id} onDone={() => router.refresh()} />
           </div>
         ))}

@@ -12,9 +12,9 @@ export function PageHeader({
   action?: React.ReactNode;
 }) {
   return (
-    <div className="mb-6 flex items-end justify-between gap-4">
-      <div>
-        <h1 className="font-serif text-[28px] font-bold leading-tight text-ink">
+    <div className="mb-6 flex flex-wrap items-end justify-between gap-x-4 gap-y-3">
+      <div className="min-w-0">
+        <h1 className="font-serif text-2xl font-bold leading-tight text-ink sm:text-[28px]">
           {title}
         </h1>
         {subtitle && <p className="mt-0.5 text-sm text-mute">{subtitle}</p>}

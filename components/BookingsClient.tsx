@@ -198,12 +198,12 @@ export default function BookingsClient({
         {bookings.length === 0 && <div className="px-4 py-8 text-center text-sm text-mute">No bookings yet.</div>}
         {bookings.map((b) => (
           <div key={b.id} className="flex items-center gap-3 px-4 py-3">
-            <div className="num w-12 text-xs font-semibold text-gold-deep">#{String(b.serialNo).padStart(4, "0")}</div>
+            <div className="num w-12 shrink-0 text-xs font-semibold text-gold-deep">#{String(b.serialNo).padStart(4, "0")}</div>
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
-                <span className="truncate font-medium text-ink">{b.partyName}</span>
-                <span className={`rounded px-1.5 py-0.5 text-[10px] font-bold uppercase ${b.trnType === "purchase" ? "bg-[rgba(49,121,122,.12)] text-[#245f60]" : "bg-[rgba(201,162,39,.12)] text-gold-deep"}`}>{b.trnType === "purchase" ? "Buy" : "Sale"}</span>
-                <StatusBadge status={b.status === "open" ? "open" : b.status === "delivered" ? "completed" : "partial"} />
+                <span className="min-w-0 flex-1 truncate font-medium text-ink">{b.partyName}</span>
+                <span className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold uppercase ${b.trnType === "purchase" ? "bg-[rgba(49,121,122,.12)] text-[#245f60]" : "bg-[rgba(201,162,39,.12)] text-gold-deep"}`}>{b.trnType === "purchase" ? "Buy" : "Sale"}</span>
+                <span className="shrink-0"><StatusBadge status={b.status === "open" ? "open" : b.status === "delivered" ? "completed" : "partial"} /></span>
               </div>
               <div className="text-xs text-mute">
                 {metalLabel(b.metal)} · {b.bookMode === "metal" ? `${fmtWeight(b.weightBooked ?? 0)}${b.lockedRate ? ` @ ${fmtRate(b.lockedRate)}/g` : ""}` : `Amount ${fmtMoney(b.amount ?? 0)}${b.lockedRate ? ` @ ${fmtRate(b.lockedRate)}/g ≈ ${fmtWeight(round3((b.amount ?? 0) / b.lockedRate))}` : ""}`}
@@ -223,9 +223,9 @@ export default function BookingsClient({
               </a>
             )}
             {b.status !== "delivered" && b.status !== "cancelled" && (
-              <button onClick={() => setDeliver(b)} className="rounded-lg border border-[#cde9d8] bg-[#eaf6ef] px-3 py-1.5 text-xs font-semibold text-pos hover:bg-[#dcefe4]">Deliver</button>
+              <button onClick={() => setDeliver(b)} className="shrink-0 rounded-lg border border-[#cde9d8] bg-[#eaf6ef] px-3 py-1.5 text-xs font-semibold text-pos hover:bg-[#dcefe4]">Deliver</button>
             )}
-            <button onClick={async () => { await deleteBookingAction(b.id); router.refresh(); }} className="rounded-lg border border-line bg-pearl px-2.5 py-1.5 text-xs font-semibold text-mute hover:border-[#f1c9c4] hover:text-neg">Del</button>
+            <button onClick={async () => { await deleteBookingAction(b.id); router.refresh(); }} className="shrink-0 rounded-lg border border-line bg-pearl px-2.5 py-1.5 text-xs font-semibold text-mute hover:border-[#f1c9c4] hover:text-neg">Del</button>
           </div>
         ))}
       </Card>

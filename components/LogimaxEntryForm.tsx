@@ -288,7 +288,7 @@ export default function LogimaxEntryForm({
   const title = trnType === "sales" ? "SALES ENTRIES" : "PURCHASE ENTRIES";
 
   return (
-    <div className="min-h-screen bg-white px-4 py-3 text-black">
+    <div className="min-h-screen bg-white px-2 py-3 text-black sm:px-4">
       <datalist id="item-opts">{ITEM_OPTS.map((o) => <option key={o} value={o} />)}</datalist>
       {/* Sales/Purchase + metal toggles + title (real menu bar removed — those were non-functional) */}
       <div className="mb-2 flex flex-wrap items-center gap-3">
@@ -324,7 +324,7 @@ export default function LogimaxEntryForm({
       {error && <div className="mb-2 text-[13px] font-semibold text-[#8b0000]">{error}</div>}
 
       {/* header fields */}
-      <div className="mb-3 grid grid-cols-[auto_1fr] gap-x-8 gap-y-2 md:grid-cols-[auto_1fr_auto_1fr_auto_1fr]">
+      <div className="mb-3 grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 md:grid-cols-[auto_1fr_auto_1fr_auto_1fr] md:gap-x-8">
         <span className={lbl}>Name</span>
         <div className="relative">
           <input
@@ -435,12 +435,14 @@ export default function LogimaxEntryForm({
         {/* RIGHT: metal receipts/payments + reconciliation */}
         <div className="min-w-0">
           <div className="mb-1 text-[14px] font-bold">METAL RECEIPTS / PAYMENTS</div>
-          <div className="mb-1 grid grid-cols-[1fr_70px_60px_60px_auto] gap-1">
-            <input placeholder="Particulars" value={moveDraft.particulars} onChange={(e) => setMoveDraft({ ...moveDraft, particulars: e.target.value })} className={fld} onKeyDown={enterAdds(addMove)} />
-            <input placeholder="Weight" inputMode="decimal" value={moveDraft.weight} onChange={(e) => setMoveDraft({ ...moveDraft, weight: e.target.value })} className={`${fld} ${num}`} onKeyDown={enterAdds(addMove)} />
-            <input placeholder="Touch" inputMode="decimal" value={moveDraft.touch} onChange={(e) => setMoveDraft({ ...moveDraft, touch: e.target.value })} className={`${fld} ${num}`} onKeyDown={enterAdds(addMove)} />
-            <input placeholder="A.Touch" inputMode="decimal" value={moveDraft.aTouch} onChange={(e) => setMoveDraft({ ...moveDraft, aTouch: e.target.value })} className={`${fld} ${num}`} onKeyDown={enterAdds(addMove)} />
-            <button className={btn} onClick={addMove}>Add</button>
+          <div className="mb-1 overflow-x-auto">
+            <div className="grid min-w-[420px] grid-cols-[1fr_70px_60px_60px_auto] gap-1">
+              <input placeholder="Particulars" value={moveDraft.particulars} onChange={(e) => setMoveDraft({ ...moveDraft, particulars: e.target.value })} className={fld} onKeyDown={enterAdds(addMove)} />
+              <input placeholder="Weight" inputMode="decimal" value={moveDraft.weight} onChange={(e) => setMoveDraft({ ...moveDraft, weight: e.target.value })} className={`${fld} ${num}`} onKeyDown={enterAdds(addMove)} />
+              <input placeholder="Touch" inputMode="decimal" value={moveDraft.touch} onChange={(e) => setMoveDraft({ ...moveDraft, touch: e.target.value })} className={`${fld} ${num}`} onKeyDown={enterAdds(addMove)} />
+              <input placeholder="A.Touch" inputMode="decimal" value={moveDraft.aTouch} onChange={(e) => setMoveDraft({ ...moveDraft, aTouch: e.target.value })} className={`${fld} ${num}`} onKeyDown={enterAdds(addMove)} />
+              <button className={btn} onClick={addMove}>Add</button>
+            </div>
           </div>
           <table className="w-full border-collapse">
             <thead>
@@ -471,16 +473,18 @@ export default function LogimaxEntryForm({
           </table>
 
           {/* adjustments */}
-          <div className="mt-3 grid grid-cols-[auto_90px_auto_110px] items-center gap-x-3 gap-y-2">
-            <span className={lbl}>Int/Dis-Pure</span>
-            <input inputMode="decimal" value={intDisPure} onChange={(e) => setIntDisPure(e.target.value)} className={`${fld} ${num}`} />
-            <span className={lbl}>Cash</span>
-            <input inputMode="decimal" value={intDisCash} onChange={(e) => setIntDisCash(e.target.value)} className={`${fld} ${num}`} />
+          <div className="mt-3 overflow-x-auto">
+            <div className="grid min-w-[420px] grid-cols-[auto_90px_auto_110px] items-center gap-x-3 gap-y-2">
+              <span className={lbl}>Int/Dis-Pure</span>
+              <input inputMode="decimal" value={intDisPure} onChange={(e) => setIntDisPure(e.target.value)} className={`${fld} ${num}`} />
+              <span className={lbl}>Cash</span>
+              <input inputMode="decimal" value={intDisCash} onChange={(e) => setIntDisCash(e.target.value)} className={`${fld} ${num}`} />
 
-            <span className={lbl}>M.C. Cash Recd.</span>
-            <input inputMode="decimal" value={mcCashRecd} onChange={(e) => setMcCashRecd(e.target.value)} className={`${fld} ${num}`} />
-            <span className={lbl}>Bank Recd</span>
-            <input inputMode="decimal" value={bankRecd} onChange={(e) => setBankRecd(e.target.value)} className={`${fld} ${num}`} />
+              <span className={lbl}>M.C. Cash Recd.</span>
+              <input inputMode="decimal" value={mcCashRecd} onChange={(e) => setMcCashRecd(e.target.value)} className={`${fld} ${num}`} />
+              <span className={lbl}>Bank Recd</span>
+              <input inputMode="decimal" value={bankRecd} onChange={(e) => setBankRecd(e.target.value)} className={`${fld} ${num}`} />
+            </div>
           </div>
           {/* one-click: fill Cash Recd with the outstanding so the bill settles to zero */}
           <button
@@ -493,28 +497,30 @@ export default function LogimaxEntryForm({
           </button>
 
           {/* Pure / Cash reconciliation grid */}
-          <div className="mt-4 grid grid-cols-[110px_120px_120px] items-center gap-x-3 gap-y-2 text-[13px]">
-            <span></span><span className="text-center font-bold">Pure</span><span className="text-center font-bold">Cash</span>
+          <div className="mt-4 overflow-x-auto">
+            <div className="grid min-w-[380px] grid-cols-[110px_120px_120px] items-center gap-x-3 gap-y-2 text-[13px]">
+              <span></span><span className="text-center font-bold">Pure</span><span className="text-center font-bold">Cash</span>
 
-            <span className="font-bold">Total.</span>
-            <input readOnly value={f3(recon.totalPure)} className={`${roFld} ${num} bg-[#e9c9c9]`} />
-            <input readOnly value={f2(round2(Math.abs(recon.totalPure) * nn(rateGm)))} className={`${roFld} ${num} bg-[#e9c9c9]`} />
+              <span className="font-bold">Total.</span>
+              <input readOnly value={f3(recon.totalPure)} className={`${roFld} ${num} bg-[#e9c9c9]`} />
+              <input readOnly value={f2(round2(Math.abs(recon.totalPure) * nn(rateGm)))} className={`${roFld} ${num} bg-[#e9c9c9]`} />
 
-            <span className="font-bold">Conversion</span>
-            <label className="flex items-center gap-1"><input type="checkbox" checked={conversion === "pure"} onChange={(e) => setConversion(e.target.checked ? "pure" : null)} />Pure</label>
-            <label className="flex items-center gap-1"><input type="checkbox" checked={conversion === "cash"} onChange={(e) => setConversion(e.target.checked ? "cash" : null)} />Cash</label>
+              <span className="font-bold">Conversion</span>
+              <label className="flex items-center gap-1"><input type="checkbox" checked={conversion === "pure"} onChange={(e) => setConversion(e.target.checked ? "pure" : null)} />Pure</label>
+              <label className="flex items-center gap-1"><input type="checkbox" checked={conversion === "cash"} onChange={(e) => setConversion(e.target.checked ? "cash" : null)} />Cash</label>
 
-            <span className="font-bold">Cash/Bank Recd</span>
-            <input inputMode="decimal" value={cashBankRecd} onChange={(e) => setCashBankRecd(e.target.value)} className={`${fld} ${num}`} />
-            <input inputMode="decimal" value={cashBankRecd} readOnly className={`${roFld} ${num}`} />
+              <span className="font-bold">Cash/Bank Recd</span>
+              <input inputMode="decimal" value={cashBankRecd} onChange={(e) => setCashBankRecd(e.target.value)} className={`${fld} ${num}`} />
+              <input inputMode="decimal" value={cashBankRecd} readOnly className={`${roFld} ${num}`} />
 
-            <span className="font-bold">Discount</span>
-            <label className="flex items-center gap-1"><input type="checkbox" checked={nn(discPure) !== 0} readOnly />Pure</label>
-            <label className="flex items-center gap-1"><input type="checkbox" checked={nn(discCash) !== 0} readOnly />Cash</label>
+              <span className="font-bold">Discount</span>
+              <label className="flex items-center gap-1"><input type="checkbox" checked={nn(discPure) !== 0} readOnly />Pure</label>
+              <label className="flex items-center gap-1"><input type="checkbox" checked={nn(discCash) !== 0} readOnly />Cash</label>
 
-            <span className="font-bold">Clsg. Bal.</span>
-            <input readOnly value={f3(recon.closingPure)} className={`${roFld} ${num} bg-[#fbf6cf]`} />
-            <input readOnly value={f2(recon.closingCash)} className={`${roFld} ${num} bg-[#fbf6cf]`} />
+              <span className="font-bold">Clsg. Bal.</span>
+              <input readOnly value={f3(recon.closingPure)} className={`${roFld} ${num} bg-[#fbf6cf]`} />
+              <input readOnly value={f2(recon.closingCash)} className={`${roFld} ${num} bg-[#fbf6cf]`} />
+            </div>
           </div>
         </div>
       </div>
@@ -552,19 +558,21 @@ function DraftRow({
 }) {
   const fld2 = "h-[22px] border border-[#7f9db9] bg-white px-1 text-[13px] outline-none focus:border-[#3b6ea5]";
   return (
-    <div className={`mb-1 grid gap-1 ${showBooking ? "grid-cols-[90px_1fr_70px_56px_64px_auto_auto]" : "grid-cols-[1fr_70px_56px_64px_auto]"}`}>
-      {showBooking && (
-        <select value={row.bookingId ?? ""} onChange={(e) => setRow({ ...row, bookingId: e.target.value || null })} className={fld2}>
-          <option value="">Select</option>
-          {bookings.map((b) => <option key={b.id} value={b.id}>{b.label}</option>)}
-        </select>
-      )}
-      <input list="item-opts" placeholder="Items" value={row.particulars} onChange={(e) => setRow({ ...row, particulars: e.target.value })} className={fld2} onKeyDown={enterAdds} />
-      <input placeholder="Weight" inputMode="decimal" value={row.weight} onChange={(e) => setRow({ ...row, weight: e.target.value })} className={`${fld2} text-right`} onKeyDown={enterAdds} />
-      <input placeholder="Touch" inputMode="decimal" value={row.touch} onChange={(e) => setRow({ ...row, touch: e.target.value })} className={`${fld2} text-right`} onKeyDown={enterAdds} />
-      <input placeholder="Rate" inputMode="decimal" value={row.rate} onChange={(e) => setRow({ ...row, rate: e.target.value })} className={`${fld2} text-right`} onKeyDown={enterAdds} />
-      <button className={btn} onClick={onAdd}>Add</button>
-      {showBooking && <button className={btn}>Book</button>}
+    <div className="mb-1 overflow-x-auto">
+      <div className={`grid gap-1 ${showBooking ? "min-w-[560px] grid-cols-[90px_1fr_70px_56px_64px_auto_auto]" : "min-w-[400px] grid-cols-[1fr_70px_56px_64px_auto]"}`}>
+        {showBooking && (
+          <select value={row.bookingId ?? ""} onChange={(e) => setRow({ ...row, bookingId: e.target.value || null })} className={fld2}>
+            <option value="">Select</option>
+            {bookings.map((b) => <option key={b.id} value={b.id}>{b.label}</option>)}
+          </select>
+        )}
+        <input list="item-opts" placeholder="Items" value={row.particulars} onChange={(e) => setRow({ ...row, particulars: e.target.value })} className={fld2} onKeyDown={enterAdds} />
+        <input placeholder="Weight" inputMode="decimal" value={row.weight} onChange={(e) => setRow({ ...row, weight: e.target.value })} className={`${fld2} text-right`} onKeyDown={enterAdds} />
+        <input placeholder="Touch" inputMode="decimal" value={row.touch} onChange={(e) => setRow({ ...row, touch: e.target.value })} className={`${fld2} text-right`} onKeyDown={enterAdds} />
+        <input placeholder="Rate" inputMode="decimal" value={row.rate} onChange={(e) => setRow({ ...row, rate: e.target.value })} className={`${fld2} text-right`} onKeyDown={enterAdds} />
+        <button className={btn} onClick={onAdd}>Add</button>
+        {showBooking && <button className={btn}>Book</button>}
+      </div>
     </div>
   );
 }
