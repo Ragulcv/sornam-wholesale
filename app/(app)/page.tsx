@@ -62,7 +62,7 @@ export default async function TodayPage() {
               <span className="num w-12 shrink-0 text-xs font-semibold text-gold-deep">#{String(t.serialNo).padStart(4, "0")}</span>
               <span className="w-16 shrink-0 text-xs capitalize text-mute">{t.trnType}</span>
               <span className="min-w-0 flex-1 truncate font-medium text-ink">{t.partyName ?? "—"}</span>
-              <span className="num w-24 shrink-0 text-right font-semibold text-ink sm:w-28">{fmtMoney(t.total)}</span>
+              <span className="num shrink-0 text-right font-semibold text-ink">{fmtMoney(t.total)}</span>
               <span className="order-last w-full text-xs text-mute">{metalLabel(t.metal)} · {fmtDate(t.txnDate)}</span>
             </Link>
           ))}
