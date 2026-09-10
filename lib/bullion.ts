@@ -80,11 +80,21 @@ export interface ReconResult {
   totalCash: number;             // net cash before conversion
   closingPure: number;           // Clsg. Bal. (Pure)
   closingCash: number;           // Clsg. Bal. (Cash)
+  billValue: number;             // Total row, cash side: pure × rate/gram
+  receipts: number;              // cash + bank + cash/bank taken in, as entered
+  receiptsSigned: number;        // the same money shown the way they read it: negative
 }
 
 const sumPure = (rows: ReconLine[]) => round3(rows.reduce((a, r) => a + pure(r.weight, r.touch), 0));
 
-/** Full two-ledger reconciliation matching the Logimax entry screen. */
+/**
+ * Full two-ledger reconciliation matching the Logimax entry screen.
+ *
+ * Sign convention (confirmed against how they run their current system):
+ * a receipt is money OFF the customer's account, so it reads NEGATIVE, and the
+ * closing balance is what is still owed — POSITIVE while unpaid, exactly 0 when
+ * the bill is settled, and 0 (not blank) when nothing has been received yet.
+ */
 export function reconcile(inp: ReconInput): ReconResult {
   const salePure = sumPure(inp.saleLines);
   const returnPure = sumPure(inp.returnLines);
@@ -103,12 +113,16 @@ export function reconcile(inp: ReconInput): ReconResult {
     inp.mcCashRecd + inp.bankRecd + inp.cashBankRecd + inp.intDisCash - inp.discountCash,
   );
 
+  const billValue = round2(totalPure * inp.ratePerGram);
+  const receipts = round2(inp.mcCashRecd + inp.bankRecd + inp.cashBankRecd);
+
   let closingPure = totalPure;
-  let closingCash = totalCash;
+  // Nothing received yet reads as 0 owed-less-paid on the cash line, not blank.
+  let closingCash = round2(-totalCash);
 
   if (inp.conversion === "cash") {
-    // Convert the net pure to cash at rate/gram and net it against the cash side.
-    closingCash = round2(totalCash - totalPure * inp.ratePerGram);
+    // Convert the net pure to cash at rate/gram and net the receipts off it.
+    closingCash = round2(totalPure * inp.ratePerGram - totalCash);
     closingPure = 0;
   } else if (inp.conversion === "pure") {
     // Convert the net cash to pure at rate/gram and net it against the pure side.
@@ -116,5 +130,16 @@ export function reconcile(inp: ReconInput): ReconResult {
     closingCash = 0;
   }
 
-  return { salePure, returnPure, movePure, totalPure, totalCash, closingPure, closingCash };
+  return {
+    salePure,
+    returnPure,
+    movePure,
+    totalPure,
+    totalCash,
+    closingPure,
+    closingCash,
+    billValue,
+    receipts,
+    receiptsSigned: round2(-receipts),
+  };
 }

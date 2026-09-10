@@ -3,6 +3,7 @@ import { db } from "../db";
 import { stock, transactions, transactionLines, metalMovements, settlements } from "../db/schema";
 import { eq } from "drizzle-orm";
 import { round2, round3 } from "../bullion";
+import { dayStart } from "../dates";
 
 const num = (v: string | null): number => (v == null ? 0 : parseFloat(v));
 
@@ -24,7 +25,7 @@ export interface OpeningBalance {
  * / bank movement, on top of the configured opening-stock balances.
  */
 export async function getOpeningBalance(from?: string): Promise<OpeningBalance> {
-  const cutoff = from ? new Date(from) : (() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; })();
+  const cutoff = dayStart(from);
 
   const [stockRows, txns, lines, moves, setls] = await Promise.all([
     db.select().from(stock).where(eq(stock.id, 1)),

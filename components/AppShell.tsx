@@ -13,10 +13,11 @@ const NAV_GROUPS = [
     label: "Work",
     items: [
       { href: "/", label: "Today" },
-      { href: "/entry", label: "Sales / Purchase" },
+      { href: "/entry", label: "Entry" },
       { href: "/bookings", label: "Bookings" },
       { href: "/expenses", label: "Expenses" },
       { href: "/history", label: "History" },
+      { href: "/pnl", label: "Profit & Loss" },
     ],
   },
   {

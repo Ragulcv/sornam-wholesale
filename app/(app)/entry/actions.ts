@@ -9,16 +9,71 @@ import {
   findTransactionBySerial,
   type PartyHistoryRow,
 } from "@/lib/queries/txnEdit";
-import { getPartyCashBalance } from "@/lib/queries/partyBalance";
+import {
+  getPartyLedger,
+  getCarryForward,
+  findBillsByDate,
+  type LedgerRow,
+} from "@/lib/queries/partyLedger";
+import { unlinkDeliveriesForTransaction, recordDelivery } from "@/lib/queries/bookings";
 import type { TxnActionInput } from "@/app/actions";
 
-/** Party running cash balance shown on the bill (item #9). */
-export async function partyBalanceAction(partyId: string): Promise<number> {
+/**
+ * What Opg Pure / Opg Cash must read for this customer: the carried-forward
+ * closing balance of their previous bill, not the static opening figure.
+ */
+export async function carryForwardAction(
+  partyId: string,
+  beforeTxnId?: string | null,
+): Promise<{ pure: number; cash: number; lastBillNo: number | null; lastBillDate: string | null }> {
   await requireSession();
-  return getPartyCashBalance(partyId);
+  const cf = await getCarryForward(partyId, beforeTxnId);
+  return {
+    pure: cf.pure,
+    cash: cf.cash,
+    lastBillNo: cf.lastBillNo,
+    lastBillDate: cf.lastBillDate ? cf.lastBillDate.toISOString() : null,
+  };
 }
 
-/** Find + load an existing bill by its serial No. (item #3 Find/Edit). */
+/** The customer's whole linked history, every bill chained to the last. */
+export async function partyLedgerAction(partyId: string): Promise<{
+  basePure: number;
+  baseCash: number;
+  closingPure: number;
+  closingCash: number;
+  rows: (Omit<LedgerRow, "txnDate"> & { txnDate: string })[];
+} | null> {
+  await requireSession();
+  const led = await getPartyLedger(partyId);
+  if (!led) return null;
+  return {
+    basePure: led.basePure,
+    baseCash: led.baseCash,
+    closingPure: led.closingPure,
+    closingCash: led.closingCash,
+    rows: led.rows.map((r) => ({ ...r, txnDate: r.txnDate.toISOString() })),
+  };
+}
+
+/** Find: pick a date, see that day's bills, load one. */
+export async function billsByDateAction(
+  date: string,
+  partyId?: string | null,
+): Promise<{ id: string; serialNo: number; trnType: string; partyName: string | null; value: number; txnDate: string }[]> {
+  await requireSession();
+  const rows = await findBillsByDate(date, partyId);
+  return rows.map((r) => ({ ...r, txnDate: r.txnDate.toISOString() }));
+}
+
+/** Party running cash balance shown on the bill. */
+export async function partyBalanceAction(partyId: string): Promise<number> {
+  await requireSession();
+  const cf = await getCarryForward(partyId);
+  return cf.cash;
+}
+
+/** Find + load an existing bill by its serial No. */
 export async function loadBillAction(
   serialNo: number,
 ): Promise<{ ok: true; detail: TransactionDetail } | { ok: false; error: string }> {
@@ -30,13 +85,25 @@ export async function loadBillAction(
   return { ok: true, detail };
 }
 
-/** Save edits back to an existing bill (item #3). */
+export async function loadBillByIdAction(
+  id: string,
+): Promise<{ ok: true; detail: TransactionDetail } | { ok: false; error: string }> {
+  await requireSession();
+  const detail = await getTransaction(id);
+  if (!detail) return { ok: false, error: "Bill not found" };
+  return { ok: true, detail };
+}
+
+/** Save edits back to an existing bill. */
 export async function updateBillAction(
   id: string,
   input: TxnActionInput,
 ): Promise<{ ok: true; serialNo: number } | { ok: false; error: string }> {
   await requireSession();
   const operatorName = await currentOperatorName();
+  // Re-point the booking links: drop what this bill claimed before, then
+  // re-claim from the lines as they now stand.
+  await unlinkDeliveriesForTransaction(id);
   const res = await updateTransaction(id, {
     trnType: input.trnType,
     partyId: input.partyId,
@@ -53,13 +120,17 @@ export async function updateBillAction(
     settlements: input.settlements,
   });
   if (!res) return { ok: false, error: "Bill not found" };
+  for (const l of input.lines) {
+    if (l.bookingId && l.weight > 0) await recordDelivery(l.bookingId, id, l.weight);
+  }
   revalidatePath("/");
   revalidatePath("/history");
   revalidatePath("/stock");
+  revalidatePath("/bookings");
   return { ok: true, serialNo: res.serialNo };
 }
 
-/** A party's recent bills — shown in-place while editing (item #16). */
+/** A party's recent bills — shown in-place while editing. */
 export async function partyHistoryAction(partyId: string): Promise<PartyHistoryRow[]> {
   await requireSession();
   return getPartyTxnHistory(partyId);

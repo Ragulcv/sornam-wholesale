@@ -13,21 +13,21 @@ import type { OpeningBalance } from "@/lib/queries/historyBalances";
 const cell = "border border-line2 px-1.5 py-1 text-[12px] whitespace-nowrap";
 const hc = "border border-[#17527a] px-1.5 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wide";
 
-// Numeric columns in legacy Logimax order. `key` is the HistoryRow field it maps
-// to; `mcCashO` / `mcCashR` are placeholders (metal-cash opening/recd is not tracked).
-type NumKey =
+// Numeric columns in legacy Logimax order, then the three running balances that
+// make the day tally on screen. The old MC Cash(O) / MC Cash(R) columns were
+// hardcoded zeros — they are replaced by real carried balances.
+type MoveKey =
   | "outwardWg" | "inwardWg" | "outwardPure" | "inwardPure"
-  | "mcCashO" | "mcCashR"
   | "metalWgRecd" | "metalWgPaid" | "metalPureRecd" | "metalPurePaid"
   | "cashRecd" | "cashPaid" | "bankRecd" | "bankPaid";
+type BalKey = "pureBal" | "cashBal" | "bankBal";
+type NumKey = MoveKey | BalKey;
 
-const NUM_COLS: { key: NumKey; label: string; money: boolean }[] = [
+const MOVE_COLS: { key: MoveKey; label: string; money: boolean }[] = [
   { key: "outwardWg", label: "OutWard Wg", money: false },
   { key: "inwardWg", label: "InWard Wg", money: false },
   { key: "outwardPure", label: "OutWard Pure", money: false },
   { key: "inwardPure", label: "InWard Pure", money: false },
-  { key: "mcCashO", label: "MC Cash(O)", money: true },
-  { key: "mcCashR", label: "MC Cash(R)", money: true },
   { key: "metalWgRecd", label: "Metal Wg Recd", money: false },
   { key: "metalWgPaid", label: "Metal Wg Paid", money: false },
   { key: "metalPureRecd", label: "Metal Pure Recd", money: false },
@@ -37,6 +37,13 @@ const NUM_COLS: { key: NumKey; label: string; money: boolean }[] = [
   { key: "bankRecd", label: "Bank Recd", money: true },
   { key: "bankPaid", label: "Bank Paid", money: true },
 ];
+const BAL_COLS: { key: BalKey; label: string; money: boolean }[] = [
+  { key: "pureBal", label: "Pure Bal", money: false },
+  { key: "cashBal", label: "Cash Bal", money: true },
+  { key: "bankBal", label: "Bank Bal", money: true },
+];
+const NUM_COLS: { key: NumKey; label: string; money: boolean }[] = [...MOVE_COLS, ...BAL_COLS];
+const isBal = (k: NumKey): k is BalKey => k === "pureBal" || k === "cashBal" || k === "bankBal";
 
 type NumRow = Record<NumKey, number>;
 const zeroNum = (): NumRow => Object.fromEntries(NUM_COLS.map((c) => [c.key, 0])) as NumRow;
@@ -44,9 +51,18 @@ const zeroNum = (): NumRow => Object.fromEntries(NUM_COLS.map((c) => [c.key, 0])
 function rowNums(r: HistoryRow): NumRow {
   return {
     outwardWg: r.outwardWg, inwardWg: r.inwardWg, outwardPure: r.outwardPure, inwardPure: r.inwardPure,
-    mcCashO: 0, mcCashR: 0,
     metalWgRecd: r.metalWgRecd, metalWgPaid: r.metalWgPaid, metalPureRecd: r.metalPureRecd, metalPurePaid: r.metalPurePaid,
     cashRecd: r.cashRecd, cashPaid: r.cashPaid, bankRecd: r.bankRecd, bankPaid: r.bankPaid,
+    pureBal: 0, cashBal: 0, bankBal: 0,
+  };
+}
+
+/** Net effect of one row on the org position. */
+function rowDelta(r: HistoryRow) {
+  return {
+    pure: r.inwardPure + r.metalPureRecd - r.outwardPure - r.metalPurePaid,
+    cash: r.cashRecd - r.cashPaid,
+    bank: r.bankRecd - r.bankPaid,
   };
 }
 
@@ -65,31 +81,53 @@ export default function HistoryGrid({ rows, opening }: { rows: HistoryRow[]; ope
   const [multiParty, setMultiParty] = useState<{ ids: string; parties: string[] } | null>(null);
   const allChecked = rows.length > 0 && sel.count === rows.length;
 
-  // Opening row: net metal carried in InWard Wg/Pure, money in Cash/Bank Recd.
+  // Opening row: metal carried in goes to InWard when positive and OutWard when
+  // the org is short; money likewise splits between Recd and Paid instead of
+  // being dumped into Recd with a minus sign.
   const openingRow = useMemo<NumRow>(() => {
     const o = zeroNum();
-    o.inwardWg = opening.metalWg;
-    o.inwardPure = opening.metalPure;
-    o.cashRecd = opening.cash;
-    o.bankRecd = opening.bank;
+    if (opening.metalWg >= 0) o.inwardWg = opening.metalWg; else o.outwardWg = -opening.metalWg;
+    if (opening.metalPure >= 0) o.inwardPure = opening.metalPure; else o.outwardPure = -opening.metalPure;
+    if (opening.cash >= 0) o.cashRecd = opening.cash; else o.cashPaid = -opening.cash;
+    if (opening.bank >= 0) o.bankRecd = opening.bank; else o.bankPaid = -opening.bank;
+    o.pureBal = opening.metalPure;
+    o.cashBal = opening.cash;
+    o.bankBal = opening.bank;
     return o;
   }, [opening]);
+
+  // Running balance after each bill. Rows render newest first, so the running
+  // total is built from the bottom of the list upwards.
+  const running = useMemo(() => {
+    const map = new Map<string, { pureBal: number; cashBal: number; bankBal: number }>();
+    let pure = opening.metalPure, cash = opening.cash, bank = opening.bank;
+    for (let i = rows.length - 1; i >= 0; i--) {
+      const d = rowDelta(rows[i]);
+      pure += d.pure; cash += d.cash; bank += d.bank;
+      map.set(rows[i].id, { pureBal: pure, cashBal: cash, bankBal: bank });
+    }
+    return { map, closing: { pureBal: pure, cashBal: cash, bankBal: bank } };
+  }, [rows, opening]);
 
   const totals = useMemo<NumRow>(() => {
     const t = zeroNum();
     for (const r of rows) {
       const n = rowNums(r);
-      for (const c of NUM_COLS) t[c.key] += n[c.key];
+      for (const c of MOVE_COLS) t[c.key] += n[c.key];
     }
     return t;
   }, [rows]);
 
-  // Closing = opening + range totals, per column.
+  // Closing = opening + range totals for the movement columns; the balance
+  // columns carry the running position instead of a meaningless sum.
   const closingRow = useMemo<NumRow>(() => {
     const c = zeroNum();
-    for (const col of NUM_COLS) c[col.key] = openingRow[col.key] + totals[col.key];
+    for (const col of MOVE_COLS) c[col.key] = openingRow[col.key] + totals[col.key];
+    c.pureBal = running.closing.pureBal;
+    c.cashBal = running.closing.cashBal;
+    c.bankBal = running.closing.bankBal;
     return c;
-  }, [openingRow, totals]);
+  }, [openingRow, totals, running]);
 
   async function bulkDelete() {
     setDeleting(true);
@@ -109,9 +147,11 @@ export default function HistoryGrid({ rows, opening }: { rows: HistoryRow[]; ope
     }
   }
 
-  const numCells = (n: NumRow, force: boolean, extra = "") =>
+  const numCells = (n: NumRow, force: boolean, extra = "", hideBalances = false) =>
     NUM_COLS.map((c) => (
-      <td key={c.key} className={`${cell} num ${extra}`}>{fmtCell(n[c.key], c.money, force)}</td>
+      <td key={c.key} className={`${cell} num ${extra} ${isBal(c.key) ? "bg-[#f7f4ea] font-semibold" : ""}`}>
+        {hideBalances && isBal(c.key) ? "" : fmtCell(n[c.key], c.money, force)}
+      </td>
     ));
 
   return (
@@ -178,7 +218,7 @@ export default function HistoryGrid({ rows, opening }: { rows: HistoryRow[]; ope
                   <td className={`${cell} capitalize`}>{r.trnType}</td>
                   <td className={cell}>{fmtDate(r.txnDate)}</td>
                   <td className={`${cell} font-medium`}>{r.partyName ?? "—"}</td>
-                  {numCells(n, false)}
+                  {numCells({ ...n, ...(running.map.get(r.id) ?? { pureBal: 0, cashBal: 0, bankBal: 0 }) }, false)}
                   <td className={cell}>{r.createdBy ?? "—"}</td>
                   <td className={cell}>{fmtDate(r.createdAt)}</td>
                   <td className={cell}>{r.modifiedBy ?? "—"}</td>
@@ -194,7 +234,7 @@ export default function HistoryGrid({ rows, opening }: { rows: HistoryRow[]; ope
               <td className={cell}></td>
               <td className={cell} colSpan={2}>Total</td>
               <td className={cell}></td>
-              {numCells(totals, true)}
+              {numCells(totals, true, "", true)}
               <td className={cell}></td>
               <td className={cell}></td>
               <td className={cell}></td>

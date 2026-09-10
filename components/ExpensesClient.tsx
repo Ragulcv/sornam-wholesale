@@ -6,15 +6,18 @@ import { createExpenseAction, deleteTransactionAction } from "@/app/actions";
 import { Card, PageHeader } from "@/components/ui";
 import Toolbar from "@/components/Toolbar";
 import { fmtMoney, fmtDate } from "@/lib/format";
+import { rupeesInWords } from "@/lib/words";
+import { todayKey } from "@/lib/dates";
+import type { DayTally } from "@/lib/queries/dailyTally";
 
 type PartyOpt = { id: string; name: string; phone: string | null };
 type Expense = { id: string; serialNo: number; date: string; party: string | null; cash: number; bank: number; total: number; createdBy: string | null };
 const inp = "w-full rounded-md border border-line bg-cream px-2 py-1.5 text-sm outline-none focus:border-gold";
 const nn = (s: string) => parseFloat(s) || 0;
 
-export default function ExpensesClient({ expenses, parties }: { expenses: Expense[]; parties: PartyOpt[] }) {
+export default function ExpensesClient({ expenses, parties, tally }: { expenses: Expense[]; parties: PartyOpt[]; tally: DayTally[] }) {
   const router = useRouter();
-  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [date, setDate] = useState(todayKey);
   const [partyId, setPartyId] = useState<string | null>(null);
   const [partyQuery, setPartyQuery] = useState("");
   const [showParties, setShowParties] = useState(false);
@@ -37,7 +40,9 @@ export default function ExpensesClient({ expenses, parties }: { expenses: Expens
 
   async function save() {
     setError(null);
-    if (nn(cash) <= 0 && nn(bank) <= 0) { setError("Enter a cash or bank amount."); return; }
+    // A negative amount is money coming back in, so only a genuinely empty
+    // entry is rejected.
+    if (nn(cash) === 0 && nn(bank) === 0) { setError("Enter a cash or bank amount."); return; }
     setSaving(true);
     const r = await createExpenseAction({ partyId, txnDate: date, cashPaid: nn(cash), bankPaid: nn(bank), bankName, narration });
     setSaving(false);
@@ -47,7 +52,7 @@ export default function ExpensesClient({ expenses, parties }: { expenses: Expens
 
   return (
     <>
-      <PageHeader title="Expenses" subtitle="Shop expenses — cash / bank out." />
+      <PageHeader title="Expenses" subtitle="Shop expenses — cash / bank out. Enter a minus figure (e.g. -1000) for money received back; it shows as received and lifts the day's closing balance." />
       <Toolbar items={[{ label: "Add", onClick: clear, primary: true }, { label: "Save", onClick: save, disabled: saving }, { label: "Cancel", onClick: clear }]} />
 
       <Card className="mb-5 p-4">
@@ -62,8 +67,24 @@ export default function ExpensesClient({ expenses, parties }: { expenses: Expens
               </ul>
             )}
           </div>
-          <div><span className="mb-1 block text-[11px] font-semibold uppercase text-mute">Cash</span><input inputMode="decimal" value={cash} onChange={(e) => setCash(e.target.value)} className={`${inp} num`} /></div>
-          <div><span className="mb-1 block text-[11px] font-semibold uppercase text-mute">Bank</span><input inputMode="decimal" value={bank} onChange={(e) => setBank(e.target.value)} className={`${inp} num`} /></div>
+          <div>
+            <span className="mb-1 block text-[11px] font-semibold uppercase text-mute">Cash</span>
+            <input inputMode="decimal" value={cash} onChange={(e) => setCash(e.target.value)} className={`${inp} num`} placeholder="- for received" />
+            {nn(cash) !== 0 && (
+              <span className={`mt-0.5 block text-[10px] ${nn(cash) < 0 ? "text-pos" : "text-mute"}`}>
+                {nn(cash) < 0 ? "Cash received: " : "Cash paid: "}{rupeesInWords(Math.abs(nn(cash)))}
+              </span>
+            )}
+          </div>
+          <div>
+            <span className="mb-1 block text-[11px] font-semibold uppercase text-mute">Bank</span>
+            <input inputMode="decimal" value={bank} onChange={(e) => setBank(e.target.value)} className={`${inp} num`} placeholder="- for received" />
+            {nn(bank) !== 0 && (
+              <span className={`mt-0.5 block text-[10px] ${nn(bank) < 0 ? "text-pos" : "text-mute"}`}>
+                {nn(bank) < 0 ? "Bank received: " : "Bank paid: "}{rupeesInWords(Math.abs(nn(bank)))}
+              </span>
+            )}
+          </div>
           <div><span className="mb-1 block text-[11px] font-semibold uppercase text-mute">Bank name</span><input value={bankName} onChange={(e) => setBankName(e.target.value)} className={inp} /></div>
           <div className="col-span-2 sm:col-span-4"><span className="mb-1 block text-[11px] font-semibold uppercase text-mute">Narration</span><input value={narration} onChange={(e) => setNarration(e.target.value)} className={inp} /></div>
         </div>
@@ -77,14 +98,70 @@ export default function ExpensesClient({ expenses, parties }: { expenses: Expens
             <span className="num w-12 shrink-0 text-xs font-semibold text-gold-deep">#{String(e.serialNo).padStart(4, "0")}</span>
             <span className="w-20 shrink-0 text-xs text-mute">{fmtDate(e.date)}</span>
             <span className="min-w-0 flex-1 truncate text-sm text-ink">{e.party ?? "—"}</span>
-            <span className="num shrink-0 text-right font-semibold text-ink">{fmtMoney(e.cash + e.bank)}</span>
+            <span className={`num shrink-0 text-right font-semibold ${e.cash + e.bank < 0 ? "text-pos" : "text-ink"}`}>
+              {fmtMoney(e.cash + e.bank)}
+            </span>
             <button onClick={async () => { await deleteTransactionAction(e.id); router.refresh(); }} className="shrink-0 rounded-lg border border-line bg-pearl px-2 py-1 text-xs text-mute hover:border-[#f1c9c4] hover:text-neg">Del</button>
-            {(e.cash > 0 || e.bank > 0) && (
-              <span className="order-last w-full text-xs text-mute">{e.cash > 0 && `cash ${fmtMoney(e.cash)}`}{e.cash > 0 && e.bank > 0 && " · "}{e.bank > 0 && `bank ${fmtMoney(e.bank)}`}</span>
+            {(e.cash !== 0 || e.bank !== 0) && (
+              <span className="order-last w-full text-xs text-mute">
+                {e.cash !== 0 && `${e.cash < 0 ? "cash received" : "cash"} ${fmtMoney(Math.abs(e.cash))}`}
+                {e.cash !== 0 && e.bank !== 0 && " · "}
+                {e.bank !== 0 && `${e.bank < 0 ? "bank received" : "bank"} ${fmtMoney(Math.abs(e.bank))}`}
+              </span>
             )}
           </div>
         ))}
       </Card>
+
+      <DailyTallyTable tally={tally} />
     </>
+  );
+}
+
+/**
+ * Cash and bank, day by day, with trade and expenses in the same table, so the
+ * closing figure is the one that has to match the drawer at the end of the day.
+ */
+function DailyTallyTable({ tally }: { tally: DayTally[] }) {
+  const cell = "border border-line2 px-2 py-1.5 text-[12px] whitespace-nowrap";
+  const hc = "border border-[#17527a] bg-[#1c5f8b] px-2 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wide text-white";
+  const n = `${cell} num text-right`;
+  return (
+    <div className="mt-6">
+      <h2 className="mb-2 text-sm font-semibold uppercase tracking-wider text-mute">Daily closing tally</h2>
+      <Card className="overflow-x-auto p-0">
+        <table className="w-full min-w-[860px] border-collapse">
+          <thead>
+            <tr>
+              {["Date", "Opg cash", "Trade in", "Trade out", "Expense", "Recd back", "Clsg cash", "Opg bank", "Bank in", "Bank out", "Bank expense", "Clsg bank"].map((h) => (
+                <th key={h} className={hc}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {tally.length === 0 && <tr><td className={`${cell} py-6 text-center text-mute`} colSpan={12}>Nothing recorded yet.</td></tr>}
+            {tally.map((d) => (
+              <tr key={d.date} className="odd:bg-[#faf8f3]">
+                <td className={cell}>{new Date(d.date).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "2-digit" })}</td>
+                <td className={n}>{fmtMoney(d.openingCash)}</td>
+                <td className={n}>{d.tradeCashIn ? fmtMoney(d.tradeCashIn) : ""}</td>
+                <td className={n}>{d.tradeCashOut ? fmtMoney(d.tradeCashOut) : ""}</td>
+                <td className={n}>{d.expenseCash ? fmtMoney(d.expenseCash) : ""}</td>
+                <td className={`${n} ${d.expenseCashIn ? "text-pos" : ""}`}>{d.expenseCashIn ? fmtMoney(d.expenseCashIn) : ""}</td>
+                <td className={`${n} font-bold`}>{fmtMoney(d.closingCash)}</td>
+                <td className={n}>{fmtMoney(d.openingBank)}</td>
+                <td className={n}>{d.tradeBankIn ? fmtMoney(d.tradeBankIn) : ""}</td>
+                <td className={n}>{d.tradeBankOut ? fmtMoney(d.tradeBankOut) : ""}</td>
+                <td className={n}>{d.expenseBank ? fmtMoney(d.expenseBank) : ""}</td>
+                <td className={`${n} font-bold`}>{fmtMoney(d.closingBank)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </Card>
+      <p className="mt-2 text-xs text-mute">
+        Closing = opening + trade in − trade out − expenses + anything received back. Every screen feeds this one table.
+      </p>
+    </div>
   );
 }

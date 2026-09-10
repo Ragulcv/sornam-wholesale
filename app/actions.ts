@@ -20,15 +20,20 @@ import {
   type SettleInput,
 } from "@/lib/queries/transactions";
 import { buildSalesWhatsapp, buildBookingWhatsapp, buildDeliveredWhatsapp } from "@/lib/whatsapp";
-import type { Metal, BookMode } from "@/lib/bullion";
+import type { Metal } from "@/lib/bullion";
+import type { BookType, BookSide } from "@/lib/lkb";
 import {
   createBooking,
+  updateBooking,
   deliverBooking,
   deleteBooking,
   bulkDeleteBookings,
+  saveLotPosition,
+  deleteLotPosition,
+  recordDelivery,
 } from "@/lib/queries/bookings";
 import { getOperator, listOperators } from "@/lib/queries/operators";
-import { updateSettings } from "@/lib/queries/settings";
+import { updateSettings, getMessageTemplates } from "@/lib/queries/settings";
 import { updateStockOpening } from "@/lib/queries/stock";
 import {
   createParty,
@@ -225,15 +230,26 @@ export async function createTransactionAction(
   revalidatePath("/history");
   revalidatePath("/stock");
 
+  // Saving a bill against a booking is what marks that booking delivered.
+  for (const l of validLines) {
+    if (l.bookingId) await recordDelivery(l.bookingId, id, l.weight);
+  }
+  revalidatePath("/bookings");
+
   let whatsappUrl: string | null = null;
-  if (input.trnType === "sales" && input.partyPhone) {
+  if (input.partyPhone) {
     const totalWeight = validLines.reduce((a, l) => a + l.weight, 0);
     const rate = input.barRate || validLines[0]?.rate || 0;
+    const tpl = await getMessageTemplates();
     whatsappUrl = buildSalesWhatsapp(input.partyPhone, {
       partyName: input.partyName || "Customer",
       metal: input.metal,
       totalWeight,
       rate,
+      amount: validLines.reduce((a, l) => a + l.weight * l.rate, 0),
+      billNo: serialNo,
+      template: input.trnType === "purchase" ? tpl.purchase : tpl.sales,
+      trnType: input.trnType,
     });
   }
   return { ok: true, id, serialNo, whatsappUrl };
@@ -252,8 +268,17 @@ export async function createExpenseAction(input: ExpenseActionInput): Promise<Ac
   await requireSession();
   const cash = input.cashPaid ?? 0;
   const bank = input.bankPaid ?? 0;
-  if (cash <= 0 && bank <= 0) return { error: "Enter a cash or bank amount." };
+  if (cash === 0 && bank === 0) return { error: "Enter a cash or bank amount." };
   const operatorName = await currentOperatorName();
+  // A negative amount is money coming back IN (cash received), not going out.
+  // Storing it as a "received" settlement of the absolute value is what makes
+  // it land in the Cash Recd column of history and tally the day correctly.
+  const signed = (amount: number, mode: "cash" | "bank", bankName?: string) => ({
+    mode,
+    direction: (amount < 0 ? "received" : "paid") as "received" | "paid",
+    amount: Math.abs(amount),
+    ...(bankName ? { bankName } : {}),
+  });
   const { serialNo } = await createTransaction({
     trnType: "expense",
     partyId: input.partyId ?? null,
@@ -262,10 +287,7 @@ export async function createExpenseAction(input: ExpenseActionInput): Promise<Ac
     narration: input.narration,
     lines: [],
     movements: [],
-    settlements: [
-      { mode: "cash" as const, direction: "paid" as const, amount: cash },
-      { mode: "bank" as const, direction: "paid" as const, amount: bank, bankName: input.bankName },
-    ].filter((s) => s.amount > 0),
+    settlements: [signed(cash, "cash"), signed(bank, "bank", input.bankName)].filter((s) => s.amount > 0),
     operatorName,
   });
   revalidatePath("/expenses");
@@ -294,43 +316,53 @@ export async function bulkDeleteTransactionsAction(ids: string[]): Promise<void>
 // ---- Bookings -----------------------------------------------------------
 
 export interface BookingActionInput {
+  id?: string | null;
   partyId?: string | null;
   partyName?: string;
   partyPhone?: string;
-  trnType: "sales" | "purchase";
+  bookType: BookType;
+  side: BookSide;
   metal: Metal;
-  bookMode: BookMode;
-  weightBooked?: number | null;
-  lockedRate?: number | null;
-  amount?: number | null;
-  notes?: string;
+  bookDate?: string;
+  weight: number;
+  rate?: number | null;
+  delivered?: number;
+  mcxRate?: number | null;
+  remarks?: string | null;
 }
 
-export async function createBookingAction(input: BookingActionInput): Promise<ActionState> {
+export async function saveBookingAction(input: BookingActionInput): Promise<ActionState> {
   await requireSession();
   let partyId = input.partyId;
   if (!partyId && input.partyName?.trim())
     partyId = await findOrCreateParty(input.partyName, input.partyPhone);
   if (!partyId) return { error: "Pick or type a customer." };
-  if (input.bookMode === "metal" && !(input.weightBooked && input.weightBooked > 0))
-    return { error: "Enter the weight to book." };
-  if (input.bookMode === "amount" && !(input.amount && input.amount > 0))
-    return { error: "Enter the amount to book." };
+  if (!(input.weight > 0)) return { error: "Enter the weight (WT)." };
 
   const operatorName = await currentOperatorName();
+
+  if (input.id) {
+    await updateBooking(input.id, { ...input, partyId, operatorName });
+    revalidatePath("/bookings");
+    revalidatePath("/entry");
+    return { ok: true, id: input.id };
+  }
+
   const { id, serialNo } = await createBooking({ ...input, partyId, operatorName });
   revalidatePath("/bookings");
+  revalidatePath("/entry");
   revalidatePath("/");
 
+  const tpl = await getMessageTemplates();
   const whatsappUrl = input.partyPhone
     ? buildBookingWhatsapp(input.partyPhone, {
         partyName: input.partyName || "Customer",
-        trnType: input.trnType,
+        side: input.side,
+        bookType: input.bookType,
         metal: input.metal,
-        bookMode: input.bookMode,
-        weight: input.weightBooked ?? undefined,
-        rate: input.lockedRate ?? undefined,
-        amount: input.amount ?? undefined,
+        weight: input.weight,
+        rate: input.rate ?? undefined,
+        template: tpl.booking,
       })
     : null;
   return { ok: true, id, serialNo, whatsappUrl };
@@ -364,11 +396,13 @@ export async function deliverBookingAction(input: DeliverActionInput): Promise<A
   revalidatePath("/");
 
   const totalWeight = validLines.reduce((a, l) => a + l.weight, 0);
+  const tpl = await getMessageTemplates();
   const whatsappUrl = input.partyPhone
     ? buildDeliveredWhatsapp(input.partyPhone, {
         partyName: input.partyName || "Customer",
         metal: input.metal,
         weight: totalWeight,
+        template: tpl.delivered,
       })
     : null;
   return { ok: true, txnId, serialNo, whatsappUrl };
@@ -378,11 +412,36 @@ export async function deleteBookingAction(id: string): Promise<void> {
   await requireSession();
   await deleteBooking(id);
   revalidatePath("/bookings");
+  revalidatePath("/entry");
 }
 
 export async function bulkDeleteBookingsAction(ids: string[]): Promise<void> {
   await requireSession();
   await bulkDeleteBookings(ids);
+  revalidatePath("/bookings");
+  revalidatePath("/entry");
+}
+
+// ---- MCX lot positions ("- OR +" sheet) ---------------------------------
+
+export async function saveLotPositionAction(input: {
+  id?: string | null;
+  block: "customer" | "account";
+  name: string;
+  sellLots: number;
+  buyLots: number;
+  notes?: string | null;
+}): Promise<ActionState> {
+  await requireSession();
+  if (!input.name.trim()) return { error: "Enter a name." };
+  await saveLotPosition({ ...input, name: input.name.trim() });
+  revalidatePath("/bookings");
+  return { ok: true };
+}
+
+export async function deleteLotPositionAction(id: string): Promise<void> {
+  await requireSession();
+  await deleteLotPosition(id);
   revalidatePath("/bookings");
 }
 
@@ -416,6 +475,10 @@ export async function updateSettingsAction(
     tdsPercent: Math.min(100, Math.max(0, numField(fd, "tdsPercent"))),
     defaultGoldRate: str(fd, "defaultGoldRate") ? numField(fd, "defaultGoldRate") : null,
     defaultSilverRate: str(fd, "defaultSilverRate") ? numField(fd, "defaultSilverRate") : null,
+    bookingTemplate: str(fd, "bookingTemplate") || null,
+    salesTemplate: str(fd, "salesTemplate") || null,
+    purchaseTemplate: str(fd, "purchaseTemplate") || null,
+    deliveredTemplate: str(fd, "deliveredTemplate") || null,
   });
   revalidatePath("/settings");
   return { ok: true };

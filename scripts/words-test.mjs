@@ -1,0 +1,13 @@
+const { rupeesInWords, indianWords } = await import("../lib/words.ts");
+let pass=0, fail=0;
+const eq=(g,w)=>{ if(g===w){pass++;console.log(`  ok   ${g}`);} else {fail++;console.log(`  FAIL got "${g}" want "${w}"`);} };
+eq(indianWords(0), "Zero");
+eq(indianWords(15), "Fifteen");
+eq(indianWords(250000), "Two Lakh Fifty Thousand");
+eq(indianWords(14571775), "One Crore Forty Five Lakh Seventy One Thousand Seven Hundred Seventy Five");
+eq(rupeesInWords(250000), "Rupees Two Lakh Fifty Thousand Only");
+eq(rupeesInWords(1500.5), "Rupees One Thousand Five Hundred and Fifty Paise Only");
+eq(rupeesInWords(-1000), "Minus Rupees One Thousand Only");
+eq(rupeesInWords(0), "Zero Only");
+eq(rupeesInWords(15768000), "Rupees One Crore Fifty Seven Lakh Sixty Eight Thousand Only");
+console.log(`\n${pass} passed, ${fail} failed`); process.exit(fail?1:0);

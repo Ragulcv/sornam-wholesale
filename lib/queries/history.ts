@@ -3,6 +3,7 @@ import { and, desc, eq, gte, inArray, lte, sql } from "drizzle-orm";
 import { db } from "../db";
 import { transactions, transactionLines, metalMovements, settlements, parties } from "../db/schema";
 import { round2, round3 } from "../bullion";
+import { dayStart, dayEnd } from "../dates";
 
 export interface HistoryRow {
   id: string;
@@ -41,12 +42,8 @@ export async function listHistory(filter?: {
   search?: string;
 }): Promise<HistoryRow[]> {
   const cond = [];
-  if (filter?.from) cond.push(gte(transactions.txnDate, new Date(filter.from)));
-  if (filter?.to) {
-    const end = new Date(filter.to);
-    end.setHours(23, 59, 59, 999);
-    cond.push(lte(transactions.txnDate, end));
-  }
+  if (filter?.from) cond.push(gte(transactions.txnDate, dayStart(filter.from)));
+  if (filter?.to) cond.push(lte(transactions.txnDate, dayEnd(filter.to)));
   if (filter?.trnTypes && filter.trnTypes.length)
     cond.push(inArray(transactions.trnType, filter.trnTypes));
   if (filter?.search)

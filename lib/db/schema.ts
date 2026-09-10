@@ -33,6 +33,11 @@ export const bookingStatusEnum = pgEnum("booking_status", [
   "delivered",
   "cancelled",
 ]);
+// LKB workbook sheets: Ready (R), Forward (F), Unfixed (UF).
+export const bookTypeEnum = pgEnum("book_type", ["ready", "forward", "unfixed"]);
+// "- OR +" sheet: the left block is customers dealing in lots, the right block
+// is the shop's own MCX trading accounts.
+export const lotBlockEnum = pgEnum("lot_block", ["customer", "account"]);
 
 // ---- Operators (staff picked at login for created-by audit) -------------
 
@@ -97,6 +102,8 @@ export const transactionLines = pgTable("transaction_lines", {
   rate: numeric("rate", { precision: 12, scale: 2 }).notNull(), // per gram
   amount: numeric("amount", { precision: 14, scale: 2 }).notNull(),
   sortOrder: integer("sort_order").notNull().default(0),
+  // Set when the line was filled from a booking, so delivering closes the book.
+  bookingId: uuid("booking_id"),
 });
 
 // ---- Metal receipts / payments ------------------------------------------
@@ -136,6 +143,16 @@ export const bookings = pgTable("bookings", {
     .notNull()
     .references(() => parties.id, { onDelete: "restrict" }),
   trnType: trnTypeEnum("trn_type").notNull().default("sales"), // sales (we sell) | purchase (we buy)
+  // ---- LKB workbook columns ----
+  bookType: bookTypeEnum("book_type").notNull().default("ready"),
+  bookDate: timestamp("book_date", { withTimezone: true }).defaultNow().notNull(),
+  /** DELIVERY column: grams delivered so far. PENDING = weightBooked - this. */
+  deliveredWeight: numeric("delivered_weight", { precision: 12, scale: 3 })
+    .notNull()
+    .default("0"),
+  /** MCX BUY column, quoted per 10 g. PREMIUM = lockedRate - mcxRate x 0.1. */
+  mcxRate: numeric("mcx_rate", { precision: 12, scale: 2 }),
+  remarks: text("remarks"),
   metal: metalEnum("metal").notNull(),
   bookMode: bookModeEnum("book_mode").notNull(),
   weightBooked: numeric("weight_booked", { precision: 12, scale: 3 }),
@@ -147,6 +164,32 @@ export const bookings = pgTable("bookings", {
   status: bookingStatusEnum("status").notNull().default("open"),
   deliveredTxnId: uuid("delivered_txn_id"),
   createdBy: text("created_by"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+// ---- Booking deliveries (booking -> the bill that delivered it) ---------
+
+export const bookingDeliveries = pgTable("booking_deliveries", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  bookingId: uuid("booking_id")
+    .notNull()
+    .references(() => bookings.id, { onDelete: "cascade" }),
+  transactionId: uuid("transaction_id")
+    .notNull()
+    .references(() => transactions.id, { onDelete: "cascade" }),
+  weight: numeric("weight", { precision: 12, scale: 3 }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+// ---- MCX lot positions ("- OR +" sheet) ---------------------------------
+
+export const mcxPositions = pgTable("mcx_positions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  block: lotBlockEnum("block").notNull(),
+  name: text("name").notNull(),
+  sellLots: numeric("sell_lots", { precision: 10, scale: 3 }).notNull().default("0"),
+  buyLots: numeric("buy_lots", { precision: 10, scale: 3 }).notNull().default("0"),
   notes: text("notes"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
@@ -184,6 +227,11 @@ export const settings = pgTable("settings", {
   defaultGoldRate: numeric("default_gold_rate", { precision: 12, scale: 2 }),
   defaultSilverRate: numeric("default_silver_rate", { precision: 12, scale: 2 }),
   priceUpdatedAt: timestamp("price_updated_at", { withTimezone: true }),
+  // Editable WhatsApp wording. NULL falls back to the built-in template.
+  bookingTemplate: text("booking_template"),
+  salesTemplate: text("sales_template"),
+  purchaseTemplate: text("purchase_template"),
+  deliveredTemplate: text("delivered_template"),
 });
 
 // ---- Inferred types -----------------------------------------------------
@@ -195,5 +243,7 @@ export type TransactionLine = typeof transactionLines.$inferSelect;
 export type MetalMovement = typeof metalMovements.$inferSelect;
 export type Settlement = typeof settlements.$inferSelect;
 export type Booking = typeof bookings.$inferSelect;
+export type BookingDelivery = typeof bookingDeliveries.$inferSelect;
+export type McxPosition = typeof mcxPositions.$inferSelect;
 export type Stock = typeof stock.$inferSelect;
 export type Settings = typeof settings.$inferSelect;

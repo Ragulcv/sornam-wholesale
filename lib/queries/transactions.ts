@@ -8,6 +8,7 @@ import {
   settlements,
   parties,
 } from "../db/schema";
+import { dayStart } from "../dates";
 import {
   pure,
   lineAmount,
@@ -24,6 +25,8 @@ export interface LineInput {
   weight: number;
   touch?: number;
   rate: number;
+  /** set when the line was filled from a booking, so saving closes that booking */
+  bookingId?: string | null;
 }
 export interface MoveInput {
   direction: MoveDir;
@@ -65,7 +68,7 @@ export async function createTransaction(
       trnType: input.trnType,
       partyId: input.partyId,
       metal: input.metal,
-      txnDate: input.txnDate ? new Date(input.txnDate) : new Date(),
+      txnDate: input.txnDate ? dayStart(input.txnDate) : new Date(),
       barRate: input.barRate != null ? String(input.barRate) : null,
       refNo: input.refNo?.trim() || null,
       thru: input.thru?.trim() || null,
@@ -88,6 +91,7 @@ export async function createTransaction(
       rate: String(l.rate),
       amount: String(lineAmount(l.weight, l.rate)),
       sortOrder: i,
+      bookingId: l.bookingId ?? null,
     }));
   if (lineRows.length) await db.insert(transactionLines).values(lineRows);
 
@@ -140,6 +144,7 @@ export interface TransactionDetail {
     pure: number;
     rate: number;
     amount: number;
+    bookingId: string | null;
   }[];
   movements: {
     id: string;
@@ -183,7 +188,7 @@ export async function getTransaction(id: string): Promise<TransactionDetail | nu
     tdsAmount: tds,
     createdBy: row.t.createdBy,
     createdAt: row.t.createdAt,
-    lines: lines.map((l) => ({ id: l.id, kind: l.kind, particulars: l.particulars, weight: num(l.weight), touch: l.touch == null ? null : num(l.touch), pure: num(l.pure), rate: num(l.rate), amount: num(l.amount) })),
+    lines: lines.map((l) => ({ id: l.id, kind: l.kind, particulars: l.particulars, weight: num(l.weight), touch: l.touch == null ? null : num(l.touch), pure: num(l.pure), rate: num(l.rate), amount: num(l.amount), bookingId: l.bookingId })),
     movements: moves.map((m) => ({ id: m.id, direction: m.direction, particulars: m.particulars, weight: num(m.weight), touch: m.touch == null ? null : num(m.touch), aTouch: m.aTouch == null ? null : num(m.aTouch), pure: num(m.pure) })),
     settlements: setls.map((s) => ({ id: s.id, mode: s.mode, direction: s.direction, amount: num(s.amount), bankName: s.bankName })),
     grossAmount: gross,

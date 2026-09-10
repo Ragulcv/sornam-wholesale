@@ -2,8 +2,10 @@ import Link from "next/link";
 import { listHistory } from "@/lib/queries/history";
 import { getOpeningBalance } from "@/lib/queries/historyBalances";
 import { listPartyOptions } from "@/lib/queries/parties";
+import { getPosition } from "@/lib/queries/bookings";
+import { getPnl } from "@/lib/queries/pnl";
 import { PageHeader, Card } from "@/components/ui";
-import { fmtMoney } from "@/lib/format";
+import { fmtMoney, fmtWeight } from "@/lib/format";
 import HistoryGrid from "@/components/HistoryGrid";
 import HistoryTypeFilter from "@/components/HistoryTypeFilter";
 
@@ -19,12 +21,52 @@ export default async function HistoryPage({
   const sp = await searchParams;
   const typeParam = sp.type ? (Array.isArray(sp.type) ? sp.type : [sp.type]) : [];
   const trnTypes = TYPES.filter((t) => typeParam.includes(t)) as ("sales" | "purchase" | "expense")[];
-  const [rows, parties, opening] = await Promise.all([
+  const [rows, parties, opening, position, pnl] = await Promise.all([
     listHistory({ from: sp.from, to: sp.to, trnTypes, search: sp.q }),
     listPartyOptions(),
     getOpeningBalance(sp.from),
+    getPosition(),
+    getPnl({ from: sp.from, to: sp.to }),
   ]);
   const totalValue = rows.reduce((a, r) => a + r.value, 0);
+
+  // Money moved in the visible range, so cash and bank line up on screen.
+  const money = rows.reduce(
+    (a, r) => ({
+      cashIn: a.cashIn + r.cashRecd,
+      cashOut: a.cashOut + r.cashPaid,
+      bankIn: a.bankIn + r.bankRecd,
+      bankOut: a.bankOut + r.bankPaid,
+    }),
+    { cashIn: 0, cashOut: 0, bankIn: 0, bankOut: 0 },
+  );
+
+  const t = position.totals;
+  const p = position.position;
+  const bookingTally = [
+    { label: "Booking SELL pending", value: fmtWeight(t.readySellPending + t.forwardSellPending + t.unfixedSellWeight) },
+    { label: "Booking BUY pending", value: fmtWeight(t.readyBuyPending + t.forwardBuyPending + t.unfixedBuyWeight) },
+    { label: "Book exposure", value: `${p.bookLots.toFixed(3)} lots` },
+    { label: "MCX position", value: `${p.mcxLots.toFixed(3)} lots` },
+    { label: "Net (must be 0)", value: `${p.netLots.toFixed(3)} lots`, bad: !p.hedged },
+  ];
+
+  const moneyTally = [
+    { label: "Cash in", value: fmtMoney(money.cashIn) },
+    { label: "Cash out", value: fmtMoney(money.cashOut) },
+    { label: "Cash net", value: fmtMoney(money.cashIn - money.cashOut), colour: money.cashIn - money.cashOut },
+    { label: "Bank in", value: fmtMoney(money.bankIn) },
+    { label: "Bank out", value: fmtMoney(money.bankOut) },
+    { label: "Bank net", value: fmtMoney(money.bankIn - money.bankOut), colour: money.bankIn - money.bankOut },
+  ];
+
+  const pnlTally = [
+    { label: "Avg buy /g", value: pnl.totals.avgBuyRate ? fmtMoney(pnl.totals.avgBuyRate) : "—" },
+    { label: "Avg sell /g", value: pnl.totals.avgSellRate ? fmtMoney(pnl.totals.avgSellRate) : "—" },
+    { label: "Gross P/L", value: fmtMoney(pnl.totals.grossProfit), colour: pnl.totals.grossProfit },
+    { label: "Expenses", value: fmtMoney(pnl.totals.expenses) },
+    { label: "Net P/L", value: fmtMoney(pnl.totals.netProfit), colour: pnl.totals.netProfit },
+  ];
 
   const exportUrl =
     "/api/export/transactions?" +
@@ -38,6 +80,10 @@ export default async function HistoryPage({
         subtitle={`${rows.length} entries · value ${fmtMoney(totalValue)} · tick rows to bill or delete`}
         action={<a href={exportUrl} className="rounded-xl border border-line bg-pearl px-4 py-2.5 text-sm font-semibold text-ink hover:bg-cream">Export CSV</a>}
       />
+
+      <TallyBand title="Bookings" items={bookingTally} />
+      <TallyBand title="Cash & bank in this range" items={moneyTally} />
+      <TallyBand title="Profit & loss in this range" items={pnlTally} link={{ href: "/pnl", label: "Full P&L" }} />
 
       <Card className="mb-4 p-4">
         <form method="GET" className="flex flex-wrap items-end gap-3">
@@ -53,10 +99,47 @@ export default async function HistoryPage({
           <button className="gold-grad rounded-md px-4 py-1.5 text-sm font-bold text-onyx">Go</button>
           <Link href="/history" className="rounded-md border border-line px-3 py-1.5 text-sm text-mid hover:bg-cream">Reset</Link>
         </form>
-        <p className="mt-2 text-xs text-mute">Tip: search a party, tick their deliveries, then <b>Create bill</b> to club them into one slip.</p>
+        <p className="mt-2 text-xs text-mute">
+          Tip: search a party, tick their deliveries, then <b>Create bill</b> to club them into one slip. Pure / Cash / Bank Bal are running
+          balances, so the last row is the closing position.
+        </p>
       </Card>
 
       <HistoryGrid rows={rows} opening={opening} />
     </>
+  );
+}
+
+function TallyBand({
+  title, items, link,
+}: {
+  title: string;
+  items: { label: string; value: string; colour?: number; bad?: boolean }[];
+  link?: { href: string; label: string };
+}) {
+  return (
+    <div className="mb-3">
+      <div className="mb-1 flex items-baseline gap-2">
+        <span className="text-[10px] font-semibold uppercase tracking-wider text-mute">{title}</span>
+        {link && <Link href={link.href} className="text-[11px] text-info hover:underline">{link.label}</Link>}
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {items.map((i) => (
+          <div
+            key={i.label}
+            className={`min-w-[120px] flex-1 rounded-lg border px-3 py-1.5 ${i.bad ? "border-[#f1c9c4] bg-[#fdf0ee]" : "border-line bg-pearl"}`}
+          >
+            <div className="text-[10px] font-semibold uppercase tracking-wide text-mute">{i.label}</div>
+            <div
+              className={`num text-[14px] font-bold ${
+                i.bad ? "text-neg" : i.colour == null ? "text-ink" : i.colour > 0.005 ? "text-pos" : i.colour < -0.005 ? "text-neg" : "text-ink"
+              }`}
+            >
+              {i.value}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }

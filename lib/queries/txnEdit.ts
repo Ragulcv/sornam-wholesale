@@ -2,6 +2,7 @@ import "server-only";
 import { desc, eq, inArray } from "drizzle-orm";
 import { db } from "../db";
 import { transactions, transactionLines, metalMovements, settlements } from "../db/schema";
+import { dayStart } from "../dates";
 import { pure, lineAmount, round2 } from "../bullion";
 import type { TxnInput } from "./transactions";
 
@@ -25,7 +26,7 @@ export async function updateTransaction(
       trnType: input.trnType,
       partyId: input.partyId,
       metal: input.metal,
-      txnDate: input.txnDate ? new Date(input.txnDate) : new Date(),
+      txnDate: input.txnDate ? dayStart(input.txnDate) : new Date(),
       barRate: input.barRate != null ? String(input.barRate) : null,
       refNo: input.refNo?.trim() || null,
       thru: input.thru?.trim() || null,
@@ -53,6 +54,7 @@ export async function updateTransaction(
       rate: String(l.rate),
       amount: String(lineAmount(l.weight, l.rate)),
       sortOrder: i,
+      bookingId: l.bookingId ?? null,
     }));
   if (lineRows.length) await db.insert(transactionLines).values(lineRows);
 
