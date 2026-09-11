@@ -22,6 +22,7 @@ import {
   type BookingActionInput,
 } from "@/app/actions";
 import { computePosition, computeBooking, gramsToLots, type BookType, type BookSide } from "@/lib/lkb";
+import { buildBookingWhatsapp } from "@/lib/whatsapp";
 import type { BookingRow, LotRow } from "@/lib/queries/bookings";
 import { todayKey, dayKey } from "@/lib/dates";
 
@@ -77,11 +78,17 @@ export default function BookingsWorkbook({
   parties,
   lots,
   summary,
+  shortage,
+  bookingTemplate,
 }: {
   bookings: BookingRow[];
   parties: PartyOpt[];
   lots: LotRow[];
   summary: { customers: number; pendingCount: number; pendingCustomers: number; deliveredCount: number; totalCount: number; pendingGrams: number };
+  /** pending sell bookings that current stock cannot cover, per metal */
+  shortage: { gold: number; silver: number };
+  /** the wording set in Settings; null means the standard message */
+  bookingTemplate: string | null;
 }) {
   const [sheet, setSheet] = useState<SheetKey>("R SELL");
   const active = SHEETS.find((s) => s.key === sheet)!;
@@ -96,6 +103,7 @@ export default function BookingsWorkbook({
       </div>
 
       <SummaryStrip summary={summary} />
+      <ShortageStrip shortage={shortage} />
 
       {/* Excel-style sheet tabs */}
       <div className="mb-[-1px] flex flex-wrap gap-[2px] overflow-x-auto">
@@ -126,6 +134,7 @@ export default function BookingsWorkbook({
             side={active.side!}
             bookings={bookings}
             parties={parties}
+            bookingTemplate={bookingTemplate}
           />
         )}
       </div>
@@ -157,12 +166,27 @@ function SummaryStrip({ summary }: { summary: BookingsWorkbookSummary }) {
 }
 type BookingsWorkbookSummary = { customers: number; pendingCount: number; pendingCustomers: number; deliveredCount: number; totalCount: number; pendingGrams: number };
 
+/** Booked more metal than is in stock. Never blocks a booking, just says so. */
+function ShortageStrip({ shortage }: { shortage: { gold: number; silver: number } }) {
+  const short = [
+    shortage.gold > 0.0005 ? `${shortage.gold.toFixed(3)} g gold` : null,
+    shortage.silver > 0.0005 ? `${shortage.silver.toFixed(3)} g silver` : null,
+  ].filter(Boolean);
+  if (short.length === 0) return null;
+  return (
+    <div className="mb-2 border border-[#e0a9a2] bg-[#fdf0ee] px-3 py-1.5 text-[12px] font-semibold text-[#8b0000]">
+      Booked more than stock — short by {short.join(" and ")}. Bookings are still saved.
+    </div>
+  );
+}
+
 // ---- one booking sheet ---------------------------------------------------
 
 function BookingSheet({
-  sheetKey, bookType, side, bookings, parties,
+  sheetKey, bookType, side, bookings, parties, bookingTemplate,
 }: {
   sheetKey: SheetKey; bookType: BookType; side: BookSide; bookings: BookingRow[]; parties: PartyOpt[];
+  bookingTemplate: string | null;
 }) {
   const router = useRouter();
   const [draft, setDraft] = useState<Draft>(blankDraft());
@@ -170,7 +194,7 @@ function BookingSheet({
   const [editing, setEditing] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState<Draft>(blankDraft());
   const [error, setError] = useState<string | null>(null);
-  const [saved, setSaved] = useState<string | null>(null);
+  const [saved, setSaved] = useState<{ msg: string; whatsappUrl: string | null } | null>(null);
   const [busy, startTransition] = useTransition();
   const [showDelivered, setShowDelivered] = useState(true);
 
@@ -227,7 +251,7 @@ function BookingSheet({
     startTransition(async () => {
       const r = await saveBookingAction(toInput(draft));
       if (r.ok) {
-        setSaved(`Added to ${sheetKey}.`);
+        setSaved({ msg: `Added to ${sheetKey}.`, whatsappUrl: (r.whatsappUrl as string) ?? null });
         setDraft(blankDraft());
         router.refresh();
       } else setError(r.error ?? "Could not save.");
@@ -326,7 +350,18 @@ function BookingSheet({
       )}
 
       {error && <div className="mb-2 text-[13px] font-semibold text-[#8b0000]">{error}</div>}
-      {saved && <div className="mb-2 text-[13px] font-semibold text-[#0a7a3f]">{saved}</div>}
+      {saved && (
+        <div className="mb-2 flex flex-wrap items-center gap-3 border border-[#cde9d8] bg-[#eaf6ef] px-3 py-1.5">
+          <span className="text-[13px] font-semibold text-[#0a7a3f]">{saved.msg}</span>
+          {saved.whatsappUrl && (
+            <a href={saved.whatsappUrl} target="_blank" rel="noopener noreferrer" onClick={() => setSaved(null)}
+              className="rounded-[3px] bg-[#25D366] px-3 py-[3px] text-[12px] font-bold text-white hover:bg-[#1fb855]">
+              Send WhatsApp
+            </a>
+          )}
+          <button className={`${btn} ml-auto`} onClick={() => setSaved(null)}>Dismiss</button>
+        </div>
+      )}
 
       <label className="mb-1 flex items-center gap-1 text-[12px] text-[#444]">
         <input type="checkbox" checked={showDelivered} onChange={(e) => setShowDelivered(e.target.checked)} />
@@ -399,6 +434,26 @@ function BookingSheet({
                         >
                           {side === "buy" ? "Purchase" : "Bill"}
                         </Link>
+                      )}
+                      {b.partyPhone && (
+                        <a
+                          href={buildBookingWhatsapp(b.partyPhone, {
+                            partyName: b.partyName ?? "Customer",
+                            side: b.side,
+                            bookType: b.bookType,
+                            metal: b.metal,
+                            weight: b.weight,
+                            rate: b.rate ?? undefined,
+                            delivered: b.delivered,
+                            template: bookingTemplate,
+                          })}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          title="Send this booking on WhatsApp"
+                          className="flex h-[22px] w-[26px] items-center justify-center rounded-[3px] bg-[#25D366] text-white hover:bg-[#1fb855]"
+                        >
+                          <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="currentColor"><path d="M12 2a10 10 0 0 0-8.6 15l-1.4 5 5.1-1.3A10 10 0 1 0 12 2Zm0 18a8 8 0 0 1-4.1-1.1l-.3-.2-3 .8.8-2.9-.2-.3A8 8 0 1 1 12 20Z" /></svg>
+                        </a>
                       )}
                       <button className={btn} onClick={() => startEdit(b)}>Edit</button>
                       <button
