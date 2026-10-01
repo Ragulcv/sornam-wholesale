@@ -23,7 +23,7 @@ ok("workbook sheets deployed", ["R SELL", "UF BUY", "CUSTOMERS", "- OR +", "PREM
 const entry = await (await get("/entry")).text();
 ok("entry: booking picker deployed", entry.includes("Booking…"));
 ok("entry: no Live rate button", !/>Live</.test(entry));
-ok("entry: amounts in words", entry.includes("Bank Recd:"));
+ok("entry: amounts in words", /Bank Recd(<!-- -->)?:/.test(entry));
 const pnl = await (await get("/pnl")).text();
 ok("P&L deployed", pnl.includes("Avg buy rate") && pnl.includes("Avg sell rate"));
 const settings = await (await get("/settings")).text();
