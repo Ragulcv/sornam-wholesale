@@ -34,6 +34,7 @@ import {
 } from "@/lib/queries/bookings";
 import { getOperator, listOperators } from "@/lib/queries/operators";
 import { updateSettings, getMessageTemplates } from "@/lib/queries/settings";
+import { saveMcxTrade, deleteMcxTrade, saveMcxClose } from "@/lib/queries/mcx";
 import { updateStockOpening } from "@/lib/queries/stock";
 import {
   createParty,
@@ -443,6 +444,52 @@ export async function deleteLotPositionAction(id: string): Promise<void> {
   await requireSession();
   await deleteLotPosition(id);
   revalidatePath("/bookings");
+}
+
+// ---- MCX trade register -------------------------------------------------
+
+export async function saveMcxTradeAction(input: {
+  id?: string | null;
+  day: string;
+  account: string;
+  side: "buy" | "sell";
+  lots: number;
+  price: number | null;
+  remarks?: string | null;
+}): Promise<ActionState> {
+  await requireSession();
+  if (!input.account.trim()) return { error: "Enter the MCX ID." };
+  if (!(input.lots > 0)) return { error: "Enter the lots." };
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(input.day)) return { error: "Enter the trade date." };
+  if (input.price != null && !(input.price > 0)) return { error: "Enter the price per 10 g." };
+  // a new trade must carry its price; only imported opening lots may lack one
+  if (!input.id && input.price == null) return { error: "Enter the price per 10 g." };
+  const operatorName = await currentOperatorName();
+  await saveMcxTrade({ ...input, operatorName });
+  revalidatePath("/bookings");
+  revalidatePath("/pnl");
+  revalidatePath("/history");
+  return { ok: true };
+}
+
+export async function deleteMcxTradeAction(id: string): Promise<void> {
+  await requireSession();
+  await deleteMcxTrade(id);
+  revalidatePath("/bookings");
+  revalidatePath("/pnl");
+  revalidatePath("/history");
+}
+
+export async function saveMcxCloseAction(day: string, price: number): Promise<ActionState> {
+  await requireSession();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return { error: "Pick the date." };
+  if (!(price > 0)) return { error: "Enter the MCX closing rate per 10 g." };
+  const operatorName = await currentOperatorName();
+  await saveMcxClose(day, price, operatorName);
+  revalidatePath("/bookings");
+  revalidatePath("/pnl");
+  revalidatePath("/history");
+  return { ok: true };
 }
 
 // ---- Stock --------------------------------------------------------------

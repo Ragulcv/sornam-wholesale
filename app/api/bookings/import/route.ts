@@ -2,6 +2,8 @@ import ExcelJS from "exceljs";
 import { requireSession, currentOperatorName } from "@/lib/auth";
 import { findOrCreateParty } from "@/lib/queries/parties";
 import { createBooking, saveLotPosition } from "@/lib/queries/bookings";
+import { saveMcxTrade } from "@/lib/queries/mcx";
+import { todayKey } from "@/lib/dates";
 import type { BookType, BookSide } from "@/lib/lkb";
 
 export const dynamic = "force-dynamic";
@@ -200,13 +202,24 @@ export async function POST(req: Request) {
       failed.push(`${b.sheet}: ${b.name}`);
     }
   }
+  let mcxOpening = 0;
   for (const l of lots) {
     try {
-      await saveLotPosition(l);
+      if (l.block === "customer") await saveLotPosition(l);
+      else {
+        // An MCX id's lots go into the trade register as opening positions.
+        // Their workbook carries no trade price, so these are flagged "no
+        // price" until someone adds it; the hedge counts them straight away.
+        const net = l.buyLots - l.sellLots;
+        if (Math.abs(net) > 0.0005) {
+          await saveMcxTrade({ day: todayKey(), account: l.name, side: net > 0 ? "buy" : "sell", lots: Math.abs(net), price: null, remarks: "opening position from Excel (add the price)", operatorName });
+          mcxOpening++;
+        }
+      }
     } catch {
       failed.push(`lots: ${l.name}`);
     }
   }
 
-  return Response.json({ ok: true, imported, lots: lots.length, failed, notes });
+  return Response.json({ ok: true, imported, lots: lots.length, mcxOpening, failed, notes });
 }

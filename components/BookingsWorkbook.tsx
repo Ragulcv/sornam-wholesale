@@ -24,6 +24,8 @@ import {
 import { computePosition, computeBooking, gramsToLots, type BookType, type BookSide } from "@/lib/lkb";
 import { buildBookingWhatsapp } from "@/lib/whatsapp";
 import PartyPicker from "@/components/PartyPicker";
+import McxTradesSheet, { type McxSummary } from "@/components/McxTradesSheet";
+import { PER_LOT_PER_RUPEE } from "@/lib/mcx";
 import type { BookingRow, LotRow } from "@/lib/queries/bookings";
 import { todayKey, dayKey, SHOP_TZ } from "@/lib/dates";
 
@@ -47,7 +49,7 @@ const f2 = (n: number | null | undefined) => (n == null ? "" : n.toFixed(2));
 
 const dmy = (d: Date | string) => new Date(d).toLocaleDateString("en-IN", { timeZone: SHOP_TZ, day: "2-digit", month: "short", year: "2-digit" });
 
-type SheetKey = "R SELL" | "R BUY" | "F SELL" | "F BUY" | "UF SELL" | "UF BUY" | "CUSTOMERS" | "- OR +";
+type SheetKey = "R SELL" | "R BUY" | "F SELL" | "F BUY" | "UF SELL" | "UF BUY" | "CUSTOMERS" | "- OR +" | "MCX TRADES";
 const SHEETS: { key: SheetKey; bookType?: BookType; side?: BookSide; hint: string }[] = [
   { key: "R SELL", bookType: "ready", side: "sell", hint: "Ready sales booked at a fixed rate" },
   { key: "R BUY", bookType: "ready", side: "buy", hint: "Ready purchases booked at a fixed rate" },
@@ -57,6 +59,7 @@ const SHEETS: { key: SheetKey; bookType?: BookType; side?: BookSide; hint: strin
   { key: "UF BUY", bookType: "unfixed", side: "buy", hint: "Unfixed purchases — rate not fixed yet" },
   { key: "CUSTOMERS", hint: "Every customer's book at a glance, one click to bill" },
   { key: "- OR +", hint: "Net position and the MCX hedge check" },
+  { key: "MCX TRADES", hint: "Every MCX buy and sell, open lots, and the profit on them" },
 ];
 
 interface Draft {
@@ -81,6 +84,7 @@ export default function BookingsWorkbook({
   summary,
   shortage,
   bookingTemplate,
+  mcx,
 }: {
   bookings: BookingRow[];
   parties: PartyOpt[];
@@ -90,6 +94,8 @@ export default function BookingsWorkbook({
   shortage: { gold: number; silver: number };
   /** the wording set in Settings; null means the standard message */
   bookingTemplate: string | null;
+  /** the MCX trade register, worked out */
+  mcx: McxSummary;
 }) {
   const [sheet, setSheet] = useState<SheetKey>("R SELL");
   const active = SHEETS.find((s) => s.key === sheet)!;
@@ -124,8 +130,10 @@ export default function BookingsWorkbook({
       </div>
 
       <div className="border border-[#1f5c5c] bg-white p-3">
-        {sheet === "- OR +" ? (
-          <PositionSheet bookings={bookings} lots={lots} />
+        {sheet === "MCX TRADES" ? (
+          <McxTradesSheet mcx={mcx} />
+        ) : sheet === "- OR +" ? (
+          <PositionSheet bookings={bookings} lots={lots} mcx={mcx} onOpenTrades={() => setSheet("MCX TRADES")} />
         ) : sheet === "CUSTOMERS" ? (
           <CustomerSheet bookings={bookings} />
         ) : (
@@ -572,7 +580,7 @@ function CustomerSheet({ bookings }: { bookings: BookingRow[] }) {
 
 // ---- the "- OR +" position sheet ----------------------------------------
 
-function PositionSheet({ bookings, lots }: { bookings: BookingRow[]; lots: LotRow[] }) {
+function PositionSheet({ bookings, lots, mcx, onOpenTrades }: { bookings: BookingRow[]; lots: LotRow[]; mcx: McxSummary; onOpenTrades: () => void }) {
   const router = useRouter();
   const [busy, startTransition] = useTransition();
 
@@ -593,7 +601,10 @@ function PositionSheet({ bookings, lots }: { bookings: BookingRow[]; lots: LotRo
   }, [bookings]);
 
   const customerLots = lots.filter((l) => l.block === "customer");
-  const accountLots = lots.filter((l) => l.block === "account");
+  // MCX lots come from the trade register: net long = BUY, net short = SELL
+  const accountLots = mcx.positions
+    .filter((p) => Math.abs(p.netLots) > 0.0005)
+    .map((p) => ({ name: p.account, sellLots: p.netLots < 0 ? -p.netLots : 0, buyLots: p.netLots > 0 ? p.netLots : 0 }));
   const pos = computePosition({ ...totals, customerLots, accountLots });
 
   return (
@@ -667,15 +678,40 @@ function PositionSheet({ bookings, lots }: { bookings: BookingRow[]; lots: LotRo
           onChange={() => router.refresh()}
           startTransition={startTransition}
         />
-        <LotBlock
-          title="MCX accounts (lots)"
-          hint="Our own trading ids and their live positions. BUY +, SELL −."
-          block="account"
-          rows={accountLots}
-          busy={busy}
-          onChange={() => router.refresh()}
-          startTransition={startTransition}
-        />
+        <div>
+          <div className="mb-1 flex items-baseline gap-2">
+            <h3 className="text-[14px] font-bold">MCX accounts (lots)</h3>
+            <span className="text-[11px] text-[#666]">From the MCX trade register. BUY +, SELL −.</span>
+            <button className={`${btnGo} ml-auto`} onClick={onOpenTrades}>Record MCX trade</button>
+          </div>
+          <table className="w-full border-collapse">
+            <thead><tr>{["MCX ID", "SELL", "BUY", "AVG /10g"].map((h) => <th key={h} className={th}>{h}</th>)}</tr></thead>
+            <tbody>
+              {accountLots.length === 0 && <tr><td className={`${td} text-center text-[#777]`} colSpan={4}>No open MCX lots.</td></tr>}
+              {accountLots.map((r) => {
+                const p = mcx.positions.find((x) => x.account === r.name);
+                return (
+                  <tr key={r.name}>
+                    <td className={td}>{r.name}</td>
+                    <td className={tdNum}>{r.sellLots ? r.sellLots.toFixed(3) : ""}</td>
+                    <td className={tdNum}>{r.buyLots ? r.buyLots.toFixed(3) : ""}</td>
+                    <td className={tdNum}>{p?.avgPrice != null ? p.avgPrice.toFixed(2) : <span className="text-[#8a6d10]">no price</span>}</td>
+                  </tr>
+                );
+              })}
+              <tr className="bg-[#eef2f2] font-bold">
+                <td className={td}>TOTAL</td>
+                <td className={tdNum}>{pos.accountSellLots.toFixed(3)}</td>
+                <td className={tdNum}>{pos.accountBuyLots.toFixed(3)}</td>
+                <td className={tdNum}>{pos.mcxLots.toFixed(3)}</td>
+              </tr>
+            </tbody>
+          </table>
+          <p className="mt-1 text-[11px] text-[#666]">
+            MCX P&amp;L so far: <b className={mcx.total > 0.005 ? "text-[#0a7a3f]" : mcx.total < -0.005 ? "text-[#8b0000]" : ""}>₹{mcx.total.toFixed(2)}</b>
+            {" "}(₹{PER_LOT_PER_RUPEE} per lot per ₹1 move).
+          </p>
+        </div>
       </div>
     </div>
   );

@@ -1,6 +1,7 @@
 import ExcelJS from "exceljs";
 import { requireSession } from "@/lib/auth";
-import { listBookings, listLotPositions } from "@/lib/queries/bookings";
+import { listBookings, listLotPositions, mcxAccountLots } from "@/lib/queries/bookings";
+import { getMcxBook } from "@/lib/queries/mcx";
 import type { BookingRow } from "@/lib/queries/bookings";
 
 export const dynamic = "force-dynamic";
@@ -59,7 +60,7 @@ function fixedSheet(wb: ExcelJS.Workbook, name: string, rows: BookingRow[], last
 
 export async function GET() {
   await requireSession();
-  const [bookings, lots] = await Promise.all([listBookings(), listLotPositions()]);
+  const [bookings, lots, mcx] = await Promise.all([listBookings(), listLotPositions(), getMcxBook()]);
   const live = bookings.filter((b) => b.status !== "cancelled");
   const pick = (t: string, s: string) => live.filter((b) => b.bookType === t && b.side === s);
 
@@ -115,7 +116,8 @@ export async function GET() {
   // ---- "- OR +": the position sheet, wired to the others ----
   const pos = wb.addWorksheet("- OR +");
   const cust = lots.filter((l) => l.block === "customer").slice(0, 19);
-  const acct = lots.filter((l) => l.block === "account").slice(0, 9);
+  // MCX ids and their open lots come from the trade register
+  const acct = mcxAccountLots(mcx.positions).slice(0, 9);
 
   pos.getCell("A1").value = "NAME";
   pos.getCell("B1").value = "SELL";
@@ -180,6 +182,17 @@ export async function GET() {
   ["K11", "K12", "K14"].forEach((c) => (pos.getCell(c).font = { bold: true }));
   pos.getCell("K14").numFmt = "0.000";
   pos.columns.forEach((c, i) => (c.width = [16, 10, 10, 4, 4, 14, 10, 10, 4, 18, 12, 4, 4, 12, 12, 12][i] ?? 10));
+
+  // ---- MCX TRADES: the register behind the MCX ids above ----
+  const mt = wb.addWorksheet("MCX TRADES");
+  sheetHeader(mt, ["DATE", "MCX ID", "SIDE", "LOTS", "PRICE /10g", "REMARKS"]);
+  for (const t of [...mcx.trades].reverse()) {
+    mt.addRow([new Date(`${t.day}T12:00:00+05:30`), t.account, t.side.toUpperCase(), t.lots, t.price, t.remarks]);
+  }
+  mt.getColumn(1).numFmt = "dd-mmm-yy";
+  mt.getColumn(4).numFmt = "0.000";
+  mt.getColumn(5).numFmt = "0.00";
+  mt.columns.forEach((c, i) => (c.width = [12, 16, 8, 10, 14, 30][i] ?? 12));
 
   const buf = await wb.xlsx.writeBuffer();
   const stamp = new Date().toISOString().slice(0, 10);

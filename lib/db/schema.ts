@@ -38,6 +38,7 @@ export const bookTypeEnum = pgEnum("book_type", ["ready", "forward", "unfixed"])
 // "- OR +" sheet: the left block is customers dealing in lots, the right block
 // is the shop's own MCX trading accounts.
 export const lotBlockEnum = pgEnum("lot_block", ["customer", "account"]);
+export const mcxSideEnum = pgEnum("mcx_side", ["buy", "sell"]);
 
 // ---- Operators (staff picked at login for created-by audit) -------------
 
@@ -194,6 +195,30 @@ export const mcxPositions = pgTable("mcx_positions", {
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
+// ---- MCX trade register (gold, 1 kg lots, price per 10 g) ----------------
+
+export const mcxTrades = pgTable("mcx_trades", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  serialNo: integer("serial_no").generatedAlwaysAsIdentity(),
+  tradeDate: timestamp("trade_date", { withTimezone: true }).notNull(),
+  account: text("account").notNull(), // MCX ID
+  side: mcxSideEnum("side").notNull(),
+  lots: numeric("lots", { precision: 10, scale: 3 }).notNull(),
+  /** per 10 g; null only for opening lots imported without a price */
+  price: numeric("price", { precision: 12, scale: 2 }),
+  remarks: text("remarks"),
+  createdBy: text("created_by"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+/** The MCX closing rate staff type in each day, to value open lots. */
+export const mcxCloses = pgTable("mcx_closes", {
+  day: text("day").primaryKey(), // India-time YYYY-MM-DD
+  price: numeric("price", { precision: 12, scale: 2 }).notNull(),
+  updatedBy: text("updated_by"),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
 // ---- Stock / opening balances (single row) ------------------------------
 
 export const stock = pgTable("stock", {
@@ -245,5 +270,6 @@ export type Settlement = typeof settlements.$inferSelect;
 export type Booking = typeof bookings.$inferSelect;
 export type BookingDelivery = typeof bookingDeliveries.$inferSelect;
 export type McxPosition = typeof mcxPositions.$inferSelect;
+export type McxTradeRow = typeof mcxTrades.$inferSelect;
 export type Stock = typeof stock.$inferSelect;
 export type Settings = typeof settings.$inferSelect;

@@ -3,7 +3,7 @@ import { listHistory } from "@/lib/queries/history";
 import { getOpeningBalance } from "@/lib/queries/historyBalances";
 import { listPartyOptions } from "@/lib/queries/parties";
 import { getPosition } from "@/lib/queries/bookings";
-import { getPnl } from "@/lib/queries/pnl";
+import { getFullPnl } from "@/lib/queries/pnl";
 import { PageHeader, Card } from "@/components/ui";
 import { fmtMoney, fmtWeight } from "@/lib/format";
 import HistoryGrid from "@/components/HistoryGrid";
@@ -26,7 +26,7 @@ export default async function HistoryPage({
     listPartyOptions(),
     getOpeningBalance(sp.from),
     getPosition(),
-    getPnl({ from: sp.from, to: sp.to }),
+    getFullPnl({ from: sp.from, to: sp.to }),
   ]);
   const totalValue = rows.reduce((a, r) => a + r.value, 0);
 
@@ -61,11 +61,12 @@ export default async function HistoryPage({
   ];
 
   const pnlTally = [
-    { label: "Avg buy /g", value: pnl.totals.avgBuyRate ? fmtMoney(pnl.totals.avgBuyRate) : "—" },
-    { label: "Avg sell /g", value: pnl.totals.avgSellRate ? fmtMoney(pnl.totals.avgSellRate) : "—" },
-    { label: "Gross P/L", value: fmtMoney(pnl.totals.grossProfit), colour: pnl.totals.grossProfit },
+    { label: "Avg buy /g", value: pnl.physical.totals.avgBuyRate ? fmtMoney(pnl.physical.totals.avgBuyRate) : "—" },
+    { label: "Avg sell /g", value: pnl.physical.totals.avgSellRate ? fmtMoney(pnl.physical.totals.avgSellRate) : "—" },
+    { label: "Physical P/L", value: fmtMoney(pnl.totals.physicalGross), colour: pnl.totals.physicalGross },
+    { label: "MCX P/L", value: fmtMoney(pnl.totals.mcx), colour: pnl.totals.mcx },
     { label: "Expenses", value: fmtMoney(pnl.totals.expenses) },
-    { label: "Net P/L", value: fmtMoney(pnl.totals.netProfit), colour: pnl.totals.netProfit },
+    { label: "Net P/L", value: fmtMoney(pnl.totals.net), colour: pnl.totals.net },
   ];
 
   const exportUrl =

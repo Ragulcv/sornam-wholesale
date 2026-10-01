@@ -5,6 +5,18 @@ import { bookings, bookingDeliveries, parties, mcxPositions } from "../db/schema
 import { createTransaction, type LineInput, type SettleInput } from "./transactions";
 import type { Metal } from "../bullion";
 import { dayStart } from "../dates";
+import { getMcxBook } from "./mcx";
+import type { AccountPosition } from "../mcx";
+
+/**
+ * MCX accounts for the hedge sheet, worked out from the trade register:
+ * an account that is net long shows as BUY lots, net short as SELL lots.
+ */
+export function mcxAccountLots(positions: AccountPosition[]): { name: string; sellLots: number; buyLots: number }[] {
+  return positions
+    .filter((p) => Math.abs(p.netLots) > 0.0005)
+    .map((p) => ({ name: p.account, sellLots: p.netLots < 0 ? -p.netLots : 0, buyLots: p.netLots > 0 ? p.netLots : 0 }));
+}
 import {
   computeBooking,
   computePosition,
@@ -371,12 +383,12 @@ export async function getPosition(): Promise<{
   lots: LotRow[];
   position: PositionResult;
 }> {
-  const [rows, lots] = await Promise.all([listBookings(), listLotPositions()]);
+  const [rows, lots, mcx] = await Promise.all([listBookings(), listLotPositions(), getMcxBook()]);
   const totals = bookTotals(rows);
   const position = computePosition({
     ...totals,
     customerLots: lots.filter((l) => l.block === "customer"),
-    accountLots: lots.filter((l) => l.block === "account"),
+    accountLots: mcxAccountLots(mcx.positions),
   });
   return { totals, lots, position };
 }

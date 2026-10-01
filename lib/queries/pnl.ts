@@ -183,3 +183,81 @@ export async function getPnl(filter?: { from?: string; to?: string }): Promise<P
     worstDay: sorted.length > 1 ? sorted[sorted.length - 1] : null,
   };
 }
+
+// ---------------------------------------------------------------------------
+// The whole picture: physical trading + the MCX hedge - expenses.
+// A hedged book makes its money on the spread; the physical side and the MCX
+// side move against each other when gold moves, so neither alone is the profit.
+// ---------------------------------------------------------------------------
+
+export interface FullPnlDay extends PnlDay {
+  mcxRealised: number;
+  mcxPnl: number; // booked that day + change in open value
+  mcxClose: number | null;
+  mcxCloseCarried: boolean;
+  total: number; // physical gross + MCX - expenses
+}
+
+export interface FullPnl {
+  physical: PnlSummary;
+  days: FullPnlDay[]; // newest first
+  mcx: {
+    realised: number; // booked in the range
+    open: number; // change in open value over the range (all of it, when unfiltered)
+    total: number;
+    netLots: number;
+    latestClose: { day: string; price: number } | null;
+    unpricedOpenLots: number;
+    unpricedMatchedLots: number;
+  };
+  totals: { physicalGross: number; mcx: number; expenses: number; net: number };
+}
+
+export async function getFullPnl(filter?: { from?: string; to?: string }): Promise<FullPnl> {
+  const { getMcxBook } = await import("./mcx");
+  const [physical, book] = await Promise.all([getPnl(filter), getMcxBook(filter?.to)]);
+  const mcxDays = book.days.filter((d) => !filter?.from || d.day >= filter.from);
+  const byDay = new Map(mcxDays.map((d) => [d.day, d]));
+
+  const blankPhysical = (day: string): PnlDay => ({
+    date: day, buyWeight: 0, buyAmount: 0, avgBuyRate: 0, sellWeight: 0, sellAmount: 0, avgSellRate: 0,
+    costRate: 0, costOfSales: 0, grossProfit: 0, expenses: 0, netProfit: 0, bills: 0,
+  });
+  const keys = [...new Set([...physical.days.map((d) => d.date), ...mcxDays.map((d) => d.day)])].sort().reverse();
+  const physByDay = new Map(physical.days.map((d) => [d.date, d]));
+  const days: FullPnlDay[] = keys.map((k) => {
+    const p = physByDay.get(k) ?? blankPhysical(k);
+    const m = byDay.get(k);
+    const mcxPnl = m?.pnl ?? 0;
+    return {
+      ...p,
+      mcxRealised: m?.realised ?? 0,
+      mcxPnl,
+      mcxClose: m?.close ?? null,
+      mcxCloseCarried: m?.closeCarried ?? false,
+      total: round2(p.grossProfit + mcxPnl - p.expenses),
+    };
+  });
+
+  const realised = round2(mcxDays.reduce((a, d) => a + d.realised, 0));
+  const mcxTotal = round2(mcxDays.reduce((a, d) => a + d.pnl, 0));
+  return {
+    physical,
+    days,
+    mcx: {
+      realised,
+      open: round2(mcxTotal - realised),
+      total: mcxTotal,
+      netLots: book.netLots,
+      latestClose: book.latestClose,
+      unpricedOpenLots: book.unpricedOpenLots,
+      unpricedMatchedLots: book.unpricedMatchedLots,
+    },
+    totals: {
+      physicalGross: physical.totals.grossProfit,
+      mcx: mcxTotal,
+      expenses: physical.totals.expenses,
+      net: round2(physical.totals.grossProfit + mcxTotal - physical.totals.expenses),
+    },
+  };
+}
