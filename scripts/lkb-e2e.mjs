@@ -105,6 +105,7 @@ try {
 
   // ------------------------------------------------------- negative expenses
   console.log("\n-- 4. an expense of -1000 reads as cash received --");
+  const expBefore = ((await getPnl({ from: new Date().toLocaleDateString("en-CA"), to: new Date().toLocaleDateString("en-CA") })).days[0]?.expenses) ?? 0;
   const expOut = await createTransaction({
     trnType: "expense", partyId: null, metal: "gold",
     lines: [], movements: [], settlements: [{ mode: "cash", direction: "paid", amount: 5000 }],
@@ -143,7 +144,7 @@ try {
   ok("day has an average sell rate", day && day.avgSellRate > 0, `${day?.avgSellRate}`);
   ok("gross profit = sales value - cost of sales", near(day.grossProfit, day.sellAmount - day.costOfSales), `${day.grossProfit}`);
   ok("net profit = gross - expenses", near(day.netProfit, day.grossProfit - day.expenses), `${day.netProfit}`);
-  ok("expenses net off the -1000", near(day.expenses, 4000), `${day.expenses}`);
+  ok("expenses net off the -1000 (this test adds 5000 - 1000)", near(day.expenses - expBefore, 4000), `${day.expenses} - ${expBefore} already there`);
 
   // --------------------------------------------------------------- hedge book
   console.log("\n-- 6. hedge position (the '- OR +' sheet) --");
