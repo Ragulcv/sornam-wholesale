@@ -52,12 +52,12 @@ export function StatTile({
   accent?: boolean;
 }) {
   return (
-    <Card className="p-4">
+    <Card className="min-w-0 p-4">
       <div className="text-[11px] font-semibold uppercase tracking-wider text-mute">
         {label}
       </div>
       <div
-        className={`num mt-1.5 text-2xl ${accent ? "gold-text" : "text-ink"}`}
+        className={`num mt-1.5 text-[17px] leading-tight [overflow-wrap:anywhere] sm:text-2xl ${accent ? "gold-text" : "text-ink"}`}
       >
         {value}
       </div>

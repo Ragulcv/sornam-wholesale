@@ -652,7 +652,8 @@ export default function LogimaxEntryForm({
               <button className={btn} onClick={addMove}>Add</button>
             </div>
           </div>
-          <table className="w-full border-collapse">
+          <div className="overflow-x-auto">
+          <table className="w-full min-w-[420px] border-collapse">
             <thead>
               <tr>
                 {["S.No", "Particular", "Weight", "A.Touch", "Touch", "Pure", "Del"].map((h) => <th key={h} className={th}>{h}</th>)}
@@ -679,6 +680,7 @@ export default function LogimaxEntryForm({
               </tr>
             </tbody>
           </table>
+          </div>
 
           {/* adjustments */}
           <div className="mt-3 overflow-x-auto">
