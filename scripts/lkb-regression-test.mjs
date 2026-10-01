@@ -4,9 +4,11 @@ import puppeteer from "puppeteer-core";
 import { sealData } from "iron-session";
 
 const CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
-const BASE = "http://localhost:3941";
+const BASE = process.env.LIVE_BASE ?? "http://localhost:3941";
 const tag = `R${Date.now().toString().slice(-6)}`;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+// clicks before React hydrates are silently dropped; wait for it on every page
+const live = (page) => page.waitForFunction(() => [...document.querySelectorAll("button")].some((b) => Object.keys(b).some((k) => k.startsWith("__reactProps"))), { timeout: 45000 }).then(() => sleep(400));
 let pass = 0, fail = 0;
 const ok = (l, c, d = "") => { if (c) { pass++; console.log(`  ok   ${l}${d ? ` — ${d}` : ""}`); } else { fail++; console.log(`  FAIL ${l}${d ? ` — ${d}` : ""}`); } };
 
@@ -41,7 +43,7 @@ try {
 
   console.log("\n[1] Booked-more-than-stock warning is back");
   await page.goto(`${BASE}/bookings`, { waitUntil: "domcontentloaded" });
-  await sleep(2200);
+  await live(page);
   let txt = await bodyText();
   ok("shortage strip shows", /booked more than stock/i.test(txt));
   ok("it names the short weight in gold", /short by .*gold/i.test(txt));
@@ -61,7 +63,7 @@ try {
   console.log("\n[3] The Settings wording drives that message");
   await db.update(schema.settings).set({ bookingTemplate: `Vanakkam {customer}, ${tag} pending {pending}.` }).where(eq(schema.settings.id, 1));
   await page.goto(`${BASE}/bookings`, { waitUntil: "domcontentloaded" });
-  await sleep(2200);
+  await live(page);
   const wa2 = await page.evaluate(() =>
     [...document.querySelectorAll("a")].map((a) => a.getAttribute("href") ?? "").filter((h) => h.startsWith("https://wa.me/")));
   const msg2 = wa2.length ? decodeURIComponent(wa2[0].split("text=")[1] ?? "") : "";

@@ -23,6 +23,7 @@ import {
 } from "@/app/actions";
 import { computePosition, computeBooking, gramsToLots, type BookType, type BookSide } from "@/lib/lkb";
 import { buildBookingWhatsapp } from "@/lib/whatsapp";
+import PartyPicker from "@/components/PartyPicker";
 import type { BookingRow, LotRow } from "@/lib/queries/bookings";
 import { todayKey, dayKey } from "@/lib/dates";
 
@@ -190,7 +191,6 @@ function BookingSheet({
 }) {
   const router = useRouter();
   const [draft, setDraft] = useState<Draft>(blankDraft());
-  const [showParties, setShowParties] = useState(false);
   const [editing, setEditing] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState<Draft>(blankDraft());
   const [error, setError] = useState<string | null>(null);
@@ -212,11 +212,6 @@ function BookingSheet({
     const val = rows.reduce((a, b) => a + b.value, 0);
     return { wt, del, pend, val };
   }, [rows]);
-
-  const matches = useMemo(() => {
-    const q = draft.partyName.trim().toLowerCase();
-    return parties.filter((p) => !q || p.name.toLowerCase().includes(q) || (p.phone || "").includes(q)).slice(0, 8);
-  }, [parties, draft.partyName]);
 
   // Live preview of the two computed columns while typing the new row.
   const preview = computeBooking({
@@ -298,36 +293,14 @@ function BookingSheet({
           <span />
 
           <input type="date" value={draft.date} onChange={(e) => setDraft({ ...draft, date: e.target.value })} className={cellInp} />
-          <div className="relative">
-            <input
-              value={draft.partyName}
-              onChange={(e) => { setDraft({ ...draft, partyName: e.target.value, partyId: null }); setShowParties(true); }}
-              onFocus={() => setShowParties(true)}
-              onBlur={() => setTimeout(() => setShowParties(false), 150)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  if (matches.length && !draft.partyId) setDraft({ ...draft, partyId: matches[0].id, partyName: matches[0].name });
-                  setShowParties(false);
-                }
-              }}
-              placeholder="type customer"
-              autoComplete="off"
-              className={cellInp}
-            />
-            {showParties && matches.length > 0 && (
-              <ul className="absolute z-30 mt-0.5 max-h-56 w-full overflow-auto border border-[#7f9db9] bg-white text-[13px] shadow-lg">
-                {matches.map((p) => (
-                  <li key={p.id}>
-                    <button type="button" onMouseDown={(e) => { e.preventDefault(); setDraft({ ...draft, partyId: p.id, partyName: p.name }); setShowParties(false); }}
-                      className="flex w-full justify-between px-2 py-1 text-left hover:bg-[#eef1f4]">
-                      <span>{p.name}</span><span className="text-[#666]">{p.phone}</span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
+          <PartyPicker
+            parties={parties}
+            text={draft.partyName}
+            selectedId={draft.partyId}
+            onType={(t) => setDraft((d) => ({ ...d, partyName: t, partyId: null }))}
+            onPick={(p) => setDraft((d) => ({ ...d, partyId: p.id, partyName: p.name, phone: p.phone ?? "" }))}
+            className={cellInp}
+          />
           <input inputMode="decimal" value={draft.wt} onChange={(e) => setDraft({ ...draft, wt: e.target.value })} onKeyDown={onEnter} className={`${cellInp} text-right`} />
           <input inputMode="decimal" value={draft.rate} onChange={(e) => setDraft({ ...draft, rate: e.target.value })} onKeyDown={onEnter} className={`${cellInp} text-right`} />
           {!isUnfixed && (

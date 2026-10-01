@@ -1,5 +1,5 @@
 import "server-only";
-import { and, asc, eq, inArray, sql } from "drizzle-orm";
+import { asc, eq, inArray, sql } from "drizzle-orm";
 import { db } from "../db";
 import { parties, transactions, bookings } from "../db/schema";
 
@@ -97,23 +97,37 @@ export async function createParty(data: {
 }
 
 /** Reuse a party by case-insensitive name (+ phone), else create one. */
+/**
+ * Link a typed name to a saved customer, or create one.
+ *
+ * The name decides. The phone only breaks a tie when two customers share a
+ * name, and it is compared as digits so "+91 99999 00001" and "9999900001" are
+ * the same number. Matching on name AND phone used to create a duplicate
+ * customer whenever the phone was typed in a different format.
+ */
 export async function findOrCreateParty(
   name: string,
   phone?: string | null,
 ): Promise<string> {
-  const trimmed = name.trim();
+  const trimmed = name.trim().replace(/\s+/g, " ");
   if (!trimmed) throw new Error("Party name required");
-  const existing = await db
-    .select({ id: parties.id })
+  const sameName = await db
+    .select({ id: parties.id, phone: parties.phone })
     .from(parties)
-    .where(
-      and(
-        sql`lower(${parties.name}) = lower(${trimmed})`,
-        phone && phone.trim() ? eq(parties.phone, phone.trim()) : sql`true`,
-      ),
-    )
-    .limit(1);
-  if (existing[0]) return existing[0].id;
+    .where(sql`lower(regexp_replace(trim(${parties.name}), '\\s+', ' ', 'g')) = lower(${trimmed})`);
+
+  const last10 = (s: string | null | undefined) => (s ?? "").replace(/\D/g, "").slice(-10);
+  const typed = last10(phone);
+  if (sameName.length === 1) {
+    const only = sameName[0];
+    // fill in a phone the saved customer was missing; never overwrite one
+    if (typed && !last10(only.phone)) await db.update(parties).set({ phone: phone!.trim() }).where(eq(parties.id, only.id));
+    return only.id;
+  }
+  if (sameName.length > 1) {
+    const byPhone = typed ? sameName.find((p) => last10(p.phone) === typed) : null;
+    return (byPhone ?? sameName[0]).id;
+  }
   return createParty({ name: trimmed, phone });
 }
 

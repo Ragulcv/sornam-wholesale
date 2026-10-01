@@ -26,6 +26,7 @@ import {
 import { pure, lineAmount, round2, round3, reconcile } from "@/lib/bullion";
 import { rupeesInWords } from "@/lib/words";
 import { todayKey, dayKey } from "@/lib/dates";
+import PartyPicker from "@/components/PartyPicker";
 import type { BookType, BookSide } from "@/lib/lkb";
 // Type-only import: erased at compile time, so the server-only module is never
 // pulled into the client bundle.
@@ -113,7 +114,6 @@ export default function LogimaxEntryForm({
   // header
   const [partyId, setPartyId] = useState<string | null>(seed?.partyId ?? null);
   const [partyQuery, setPartyQuery] = useState(seed?.partyName ?? "");
-  const [showParties, setShowParties] = useState(false);
   const [newPhone, setNewPhone] = useState("");
   const [txnDate, setTxnDate] = useState(todayKey);
   const [barRate, setBarRate] = useState(seed?.rate != null ? String(seed.rate) : "");
@@ -177,13 +177,6 @@ export default function LogimaxEntryForm({
   const history = historyState && historyState.forParty === partyId ? historyState.rows : [];
   const opgPure = carry?.pure ?? 0;
   const opgCash = carry?.cash ?? 0;
-
-  const matches = useMemo(() => {
-    const q = partyQuery.trim().toLowerCase();
-    return parties
-      .filter((p) => !q || p.name.toLowerCase().includes(q) || (p.phone || "").includes(q))
-      .slice(0, 8);
-  }, [parties, partyQuery]);
 
   // Bookings offered on the line: pending only, matching this screen's side,
   // newest first. A booking for the picked customer sorts to the top.
@@ -509,41 +502,16 @@ export default function LogimaxEntryForm({
       {/* header fields */}
       <div className="mb-3 grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 md:grid-cols-[auto_1fr_auto_1fr_auto_1fr] md:gap-x-8">
         <span className={lbl}>Name</span>
-        <div className="relative">
-          <input
-            ref={nameRef}
-            value={party ? party.name : partyQuery}
-            onChange={(e) => { setPartyQuery(e.target.value); setPartyId(null); setShowParties(true); touch(); }}
-            onFocus={() => setShowParties(true)}
-            onBlur={() => setTimeout(() => setShowParties(false), 150)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                if (matches.length > 0 && !party) { setPartyId(matches[0].id); setPartyQuery(matches[0].name); }
-                setShowParties(false);
-              }
-            }}
-            className={`${fld} w-full`}
-            placeholder="type customer — Enter to add"
-            autoComplete="off"
-          />
-          {showParties && matches.length > 0 && (
-            <ul className="absolute z-30 mt-0.5 max-h-56 w-full overflow-auto border border-[#7f9db9] bg-white text-[13px] shadow-lg">
-              {matches.map((p) => (
-                <li key={p.id}>
-                  <button
-                    type="button"
-                    onMouseDown={(e) => { e.preventDefault(); setPartyId(p.id); setPartyQuery(p.name); setShowParties(false); touch(); }}
-                    className="flex w-full justify-between px-2 py-1 text-left hover:bg-[#eef1f4]"
-                  >
-                    <span>{p.name}</span>
-                    <span className="text-[#666]">{p.phone}</span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
+        <PartyPicker
+          parties={parties}
+          text={party ? party.name : partyQuery}
+          selectedId={partyId}
+          onType={(t) => { setPartyQuery(t); setPartyId(null); touch(); }}
+          onPick={(p) => { setPartyId(p.id); setPartyQuery(p.name); touch(); }}
+          className={`${fld} w-full`}
+          placeholder="type customer — Enter to add"
+          inputRef={nameRef}
+        />
         <span className={lbl}>Date</span>
         <input type="date" value={txnDate} onChange={(e) => { setTxnDate(e.target.value); touch(); }} className={`${fld} w-full`} />
         <span className={lbl}>Bar Rate</span>

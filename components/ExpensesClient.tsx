@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createExpenseAction, deleteTransactionAction } from "@/app/actions";
 import { Card, PageHeader } from "@/components/ui";
@@ -8,6 +8,7 @@ import Toolbar from "@/components/Toolbar";
 import { fmtMoney, fmtDate } from "@/lib/format";
 import { rupeesInWords } from "@/lib/words";
 import { todayKey } from "@/lib/dates";
+import PartyPicker from "@/components/PartyPicker";
 import type { DayTally } from "@/lib/queries/dailyTally";
 
 type PartyOpt = { id: string; name: string; phone: string | null };
@@ -20,7 +21,6 @@ export default function ExpensesClient({ expenses, parties, tally }: { expenses:
   const [date, setDate] = useState(todayKey);
   const [partyId, setPartyId] = useState<string | null>(null);
   const [partyQuery, setPartyQuery] = useState("");
-  const [showParties, setShowParties] = useState(false);
   const [cash, setCash] = useState("");
   const [bank, setBank] = useState("");
   const [bankName, setBankName] = useState("");
@@ -29,10 +29,6 @@ export default function ExpensesClient({ expenses, parties, tally }: { expenses:
   const [error, setError] = useState<string | null>(null);
 
   const party = parties.find((p) => p.id === partyId) ?? null;
-  const matches = useMemo(() => {
-    const q = partyQuery.trim().toLowerCase();
-    return parties.filter((p) => !q || p.name.toLowerCase().includes(q)).slice(0, 8);
-  }, [parties, partyQuery]);
 
   function clear() {
     setPartyId(null); setPartyQuery(""); setCash(""); setBank(""); setBankName(""); setNarration(""); setError(null);
@@ -60,12 +56,16 @@ export default function ExpensesClient({ expenses, parties, tally }: { expenses:
           <div><span className="mb-1 block text-[11px] font-semibold uppercase text-mute">Date</span><input type="date" value={date} onChange={(e) => setDate(e.target.value)} className={inp} /></div>
           <div className="relative col-span-2">
             <span className="mb-1 block text-[11px] font-semibold uppercase text-mute">Party (optional)</span>
-            <input value={party ? party.name : partyQuery} onChange={(e) => { setPartyQuery(e.target.value); setPartyId(null); setShowParties(true); }} onFocus={() => setShowParties(true)} onBlur={() => setTimeout(() => setShowParties(false), 150)} className={inp} placeholder="Search party" autoComplete="off" />
-            {showParties && matches.length > 0 && (
-              <ul className="absolute z-20 mt-1 max-h-48 w-full overflow-auto rounded-lg border border-line bg-pearl py-1 shadow-lg">
-                {matches.map((p) => (<li key={p.id}><button type="button" onMouseDown={(e) => { e.preventDefault(); setPartyId(p.id); setPartyQuery(p.name); setShowParties(false); }} className="w-full px-3 py-1.5 text-left text-sm hover:bg-cream">{p.name}</button></li>))}
-              </ul>
-            )}
+            <PartyPicker
+              parties={parties}
+              text={party ? party.name : partyQuery}
+              selectedId={partyId}
+              onType={(t) => { setPartyQuery(t); setPartyId(null); }}
+              onPick={(p) => { setPartyId(p.id); setPartyQuery(p.name); }}
+              className={inp}
+              placeholder="Search party"
+              allowNew={false}
+            />
           </div>
           <div>
             <span className="mb-1 block text-[11px] font-semibold uppercase text-mute">Cash</span>

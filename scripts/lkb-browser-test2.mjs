@@ -3,9 +3,11 @@ import puppeteer from "puppeteer-core";
 import { sealData } from "iron-session";
 
 const CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
-const BASE = "http://localhost:3941";
+const BASE = process.env.LIVE_BASE ?? "http://localhost:3941";
 const tag = `C${Date.now().toString().slice(-6)}`;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+// clicks before React hydrates are silently dropped; wait for it on every page
+const live = (page) => page.waitForFunction(() => [...document.querySelectorAll("button")].some((b) => Object.keys(b).some((k) => k.startsWith("__reactProps"))), { timeout: 45000 }).then(() => sleep(400));
 let pass = 0, fail = 0;
 const ok = (l, c, d = "") => { if (c) { pass++; console.log(`  ok   ${l}${d ? ` — ${d}` : ""}`); } else { fail++; console.log(`  FAIL ${l}${d ? ` — ${d}` : ""}`); } };
 
@@ -31,7 +33,7 @@ try {
   // ------------------------------------------------- purchase says purchase
   console.log("\n[1] Purchase mode labels everything Purchase");
   await page.goto(`${BASE}/entry`, { waitUntil: "domcontentloaded" });
-  await sleep(2200);
+  await live(page);
   let txt = await bodyText();
   ok("sales mode reads SALES", txt.includes("SALES ENTRIES") && txt.includes("SALES RETURN"));
   await page.evaluate(() => {
@@ -48,7 +50,7 @@ try {
   // -------------------------------------------------- expense entered as -1000
   console.log("\n[2] Expense of -1000 reads as received");
   await page.goto(`${BASE}/expenses`, { waitUntil: "domcontentloaded" });
-  await sleep(2200);
+  await live(page);
   const filled = await page.evaluate(() => {
     const s = [...document.querySelectorAll("span")].find((x) => x.textContent.trim() === "Cash");
     const inp = s?.parentElement?.querySelector("input");
@@ -84,7 +86,7 @@ try {
   // ------------------------------------------------------- message templates
   console.log("\n[3] Editable WhatsApp templates");
   await page.goto(`${BASE}/settings`, { waitUntil: "domcontentloaded" });
-  await sleep(2200);
+  await live(page);
   txt = await bodyText();
   ok("placeholders are listed", txt.includes("{customer}") && txt.includes("{pending}"));
   ok("a live preview is shown", /preview/i.test(txt));

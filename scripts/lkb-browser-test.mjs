@@ -5,9 +5,11 @@ import puppeteer from "puppeteer-core";
 import { sealData } from "iron-session";
 
 const CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
-const BASE = "http://localhost:3941";
+const BASE = process.env.LIVE_BASE ?? "http://localhost:3941";
 const tag = `B${Date.now().toString().slice(-6)}`;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+// clicks before React hydrates are silently dropped; wait for it on every page
+const live = (page) => page.waitForFunction(() => [...document.querySelectorAll("button")].some((b) => Object.keys(b).some((k) => k.startsWith("__reactProps"))), { timeout: 45000 }).then(() => sleep(400));
 let pass = 0, fail = 0;
 const ok = (l, c, d = "") => { if (c) { pass++; console.log(`  ok   ${l}${d ? ` — ${d}` : ""}`); } else { fail++; console.log(`  FAIL ${l}${d ? ` — ${d}` : ""}`); } };
 
@@ -52,7 +54,7 @@ try {
   // ---------------------------------------------------------------- bookings
   console.log("\n[1] Bookings workbook");
   await page.goto(`${BASE}/bookings`, { waitUntil: "domcontentloaded" });
-  await sleep(2200);
+  await live(page);
   let txt = await bodyText();
   ok("R SELL sheet shows the booking", txt.includes(`${tag} Kumar`));
   ok("PENDING column carries 1000.000", txt.includes("1000.000"));
@@ -80,7 +82,7 @@ try {
   // ------------------------------------------------------- one-click billing
   console.log("\n[4] One click from booking to entry");
   await page.goto(`${BASE}/entry?booking=${booking.id}`, { waitUntil: "domcontentloaded" });
-  await sleep(2200);
+  await live(page);
   txt = await bodyText();
   ok("entry opens pre-filled with the customer", txt.includes(`${tag} Kumar`));
   ok("the booked weight is on the line", txt.includes("1000.000"));
@@ -147,7 +149,7 @@ try {
   ok("status is delivered", closed.status === "delivered", closed.status);
 
   await page.goto(`${BASE}/bookings`, { waitUntil: "domcontentloaded" });
-  await sleep(2000);
+  await live(page);
   txt = await bodyText();
   ok("bookings sheet shows it as delivered", /delivered/i.test(txt));
 
