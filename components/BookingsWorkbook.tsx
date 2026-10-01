@@ -703,12 +703,12 @@ function PositionSheet({ bookings, lots, mcx, onOpenTrades }: { bookings: Bookin
                 <td className={td}>TOTAL</td>
                 <td className={tdNum}>{pos.accountSellLots.toFixed(3)}</td>
                 <td className={tdNum}>{pos.accountBuyLots.toFixed(3)}</td>
-                <td className={tdNum}>{pos.mcxLots.toFixed(3)}</td>
+                <td className={`${tdNum} text-[11px] font-semibold`}>net {pos.mcxLots > 0 ? "+" : ""}{pos.mcxLots.toFixed(3)} lots</td>
               </tr>
             </tbody>
           </table>
           <p className="mt-1 text-[11px] text-[#666]">
-            MCX P&amp;L so far: <b className={mcx.total > 0.005 ? "text-[#0a7a3f]" : mcx.total < -0.005 ? "text-[#8b0000]" : ""}>₹{mcx.total.toFixed(2)}</b>
+            MCX P&amp;L so far: <b className={mcx.total > 0.005 ? "text-[#0a7a3f]" : mcx.total < -0.005 ? "text-[#8b0000]" : ""}>{mcx.total < 0 ? "−" : ""}₹{new Intl.NumberFormat("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Math.abs(mcx.total))}</b>
             {" "}(₹{PER_LOT_PER_RUPEE} per lot per ₹1 move).
           </p>
         </div>
