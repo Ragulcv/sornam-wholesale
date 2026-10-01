@@ -10,10 +10,10 @@ const num = (v: string | null): number => (v == null ? 0 : parseFloat(v));
 /**
  * One customer's running book, oldest bill first.
  *
- * Sign convention throughout, matching how they read their own screen:
- *   POSITIVE = the customer owes us.
- *   A receipt (cash in, or bank receipt) is therefore NEGATIVE, and a bill with
- *   nothing received shows 0 in the receipt column rather than blank.
+ * Sign convention throughout, the same as the bill's Clsg. Bal. (Logimax):
+ *   NEGATIVE = the customer owes us; POSITIVE = we owe them (they are in credit).
+ *   A receipt shows NEGATIVE in its own column, and a bill with nothing
+ *   received shows 0 there rather than blank.
  *
  * Every bill starts from the previous bill's closing balance, so pure and cash
  * carry forward day after day instead of each bill starting at zero.
@@ -108,10 +108,11 @@ export async function getPartyLedger(partyId: string): Promise<PartyLedger | nul
     const cashPaid = amt("cash"), bankPaid = amt("bank");
     const payments = cashPaid + bankPaid;
 
-    const billPure = rate > 0 ? 0 : totalPure;
-    const billCash = rate > 0 ? totalPure * rate - payments : -payments;
+    // exactly the bill's Clsg. Bal.: received minus value, so owed is negative
+    const billPure = rate > 0 ? 0 : -totalPure;
+    const billCash = rate > 0 ? payments - totalPure * rate : payments;
 
-    // the account is kept from our side: positive = the customer owes us
+    // on a purchase the bill's "owed" is ours, so it lands on their side as credit
     const side = isPurchase ? -1 : 1;
     per.set(t.id, {
       pure: side * billPure,

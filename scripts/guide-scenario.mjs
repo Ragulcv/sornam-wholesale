@@ -50,7 +50,7 @@ eq("summary customers", summ.customers, 2); eq("summary bookings", summ.totalCou
 
 console.log("\n== TEST 2: carry-forward ==");
 let r = recon({ saleLines: [{ weight: 10, touch: 100 }], ratePerGram: 15000, mcCashRecd: 50000 });
-eq("bill1 total pure", r.totalPure, 10); eq("bill1 total cash", r.billValue, 150000); eq("bill1 recd box", r.receiptsSigned, -50000); eq("bill1 clsg pure", r.closingPure, 0); eq("bill1 clsg cash", r.closingCash, 100000);
+eq("bill1 total pure", r.totalPure, 10); eq("bill1 total cash", r.billValue, 150000); eq("bill1 recd box", r.receiptsSigned, -50000); eq("bill1 clsg pure", r.closingPure, 0); eq("bill1 clsg cash", r.closingCash, -100000);
 eq("words 50000", rupeesInWords(50000), "Rupees Fifty Thousand Only");
 const anand = await findOrCreateParty("Test Anand");
 const b1 = await createTransaction({ trnType: "sales", partyId: anand, metal: "gold", txnDate: today, barRate: 15000, operatorName: "t",
@@ -58,9 +58,9 @@ const b1 = await createTransaction({ trnType: "sales", partyId: anand, metal: "g
   settlements: [{ mode: "cash", direction: "received", amount: 50000 }] });
 eq("bill1 number", b1.serialNo, 1);
 let cf = await getCarryForward(anand);
-eq("bill2 OpgCash", cf.cash, 100000); eq("bill2 OpgPure", cf.pure, 0); eq("after bill No.", cf.lastBillNo, 1);
+eq("bill2 OpgCash", cf.cash, -100000); eq("bill2 OpgPure", cf.pure, 0); eq("after bill No.", cf.lastBillNo, 1);
 r = recon({ saleLines: [{ weight: 5, touch: 100 }], ratePerGram: 15000, bankRecd: 175000 });
-eq("bill2 total cash", r.billValue, 75000); eq("bill2 recd box", r.receiptsSigned, -175000); eq("bill2 clsg cash", r.closingCash, -100000);
+eq("bill2 total cash", r.billValue, 75000); eq("bill2 recd box", r.receiptsSigned, -175000); eq("bill2 clsg cash", r.closingCash, 100000);
 eq("bill2 after-this-bill", cf.cash + r.closingCash, 0);
 eq("words 175000", rupeesInWords(175000), "Rupees One Lakh Seventy Five Thousand Only");
 const b2 = await createTransaction({ trnType: "sales", partyId: anand, metal: "gold", txnDate: today, barRate: 15000, operatorName: "t",
@@ -68,8 +68,8 @@ const b2 = await createTransaction({ trnType: "sales", partyId: anand, metal: "g
   settlements: [{ mode: "bank", direction: "received", amount: 175000 }] });
 const led = await getPartyLedger(anand);
 eq("ledger rows", led.rows.length, 2);
-eq("L1 opg cash", led.rows[0].openingCash, 0); eq("L1 cash", led.rows[0].cashMoved, 100000); eq("L1 cash paid", led.rows[0].cashReceipt, -50000); eq("L1 bank", led.rows[0].bankReceipt, 0); eq("L1 clsg pure", led.rows[0].closingPure, 0); eq("L1 clsg cash", led.rows[0].closingCash, 100000);
-eq("L2 opg cash", led.rows[1].openingCash, 100000); eq("L2 cash", led.rows[1].cashMoved, -100000); eq("L2 bank", led.rows[1].bankReceipt, -175000); eq("L2 clsg cash", led.rows[1].closingCash, 0); eq("L2 clsg pure", led.rows[1].closingPure, 0);
+eq("L1 opg cash", led.rows[0].openingCash, 0); eq("L1 cash", led.rows[0].cashMoved, -100000); eq("L1 cash paid", led.rows[0].cashReceipt, -50000); eq("L1 bank", led.rows[0].bankReceipt, 0); eq("L1 clsg pure", led.rows[0].closingPure, 0); eq("L1 clsg cash", led.rows[0].closingCash, -100000);
+eq("L2 opg cash", led.rows[1].openingCash, -100000); eq("L2 cash", led.rows[1].cashMoved, 100000); eq("L2 bank", led.rows[1].bankReceipt, -175000); eq("L2 clsg cash", led.rows[1].closingCash, 0); eq("L2 clsg pure", led.rows[1].closingPure, 0);
 cf = await getCarryForward(anand); eq("bill3 OpgCash", cf.cash, 0);
 
 console.log("\n== TEST 3: P&L (purchase + expenses) ==");

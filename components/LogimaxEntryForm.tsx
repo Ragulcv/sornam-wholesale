@@ -168,7 +168,12 @@ export default function LogimaxEntryForm({
   const [error, setError] = useState<string | null>(null);
   const nameRef = useRef<HTMLInputElement>(null);
 
-  const touch = useCallback(() => setSavedLock(false), []);
+  // The first edit after a save starts a NEW bill: unlock Save and drop the
+  // "Saved. Bill No. X" banner, so a fresh form never looks like bill X is open.
+  const touch = useCallback(() => {
+    if (savedLock) setStatus(null);
+    setSavedLock(false);
+  }, [savedLock]);
   const isPurchase = trnType === "purchase";
 
   const party = parties.find((p) => p.id === partyId) ?? null;
@@ -208,7 +213,7 @@ export default function LogimaxEntryForm({
 
   // The customer's account after this bill: what they carried in, plus what
   // this bill leaves owing.
-  const side = trnType === "purchase" ? -1 : 1; // positive = the customer owes us
+  const side = trnType === "purchase" ? -1 : 1; // negative = the customer owes us
   const acctClosingPure = round3(opgPure + side * recon.closingPure);
   const acctClosingCash = round2(opgCash + side * recon.closingCash);
 
@@ -458,14 +463,14 @@ export default function LogimaxEntryForm({
         </button>
         <button className={btn} onClick={() => clearAll()}>Cancel</button>
         {lastSavedId && (
-          <a className={btn} href={`/history/${lastSavedId}?auto=1`} target="_blank" rel="noopener noreferrer" title="Print this bill">Print</a>
+          <a className={btn} href={`/history/${lastSavedId}?auto=1`} target="_blank" rel="noopener noreferrer" title="Print the bill just saved">{lastSavedNo != null ? `Print No. ${lastSavedNo}` : "Print"}</a>
         )}
         <span className="ml-2 flex items-center gap-1">
           <input value={findNo} onChange={(e) => setFindNo(e.target.value)} placeholder="Bill No." className={`${fld} ${num} w-20`} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); findBill(); } }} />
           <input type="date" value={findDate} onChange={(e) => setFindDate(e.target.value)} className={`${fld} w-[140px]`} title="Find every bill on this date" />
           <button className={btn} onClick={() => (findNo.trim() ? findBill() : findByDate())}>Find</button>
         </span>
-        <span className="ml-1 text-[12px] text-[#555]">Bill No. <b className="text-black">{editSerial ?? lastSavedNo ?? "New (auto)"}</b></span>
+        <span className="ml-1 text-[12px] text-[#555]">Bill No. <b className="text-black">{editSerial ?? "New (auto)"}</b></span>
         {editingId && <span className="text-[12px] font-semibold text-[#8b0000]">● editing</span>}
       </div>
       {status && <div className="mb-2 text-[13px] font-semibold text-[#0a7a3f]">{status}</div>}
@@ -539,15 +544,15 @@ export default function LogimaxEntryForm({
             <span className="font-semibold">{party?.name ?? partyQuery}</span>
             <span>
               Brought forward: Pure <b className="tabular-nums">{f3(opgPure)}</b> · Cash{" "}
-              <b className={`tabular-nums ${opgCash > 0.005 ? "text-[#8b0000]" : opgCash < -0.005 ? "text-[#0a7a3f]" : ""}`}>{f2(opgCash)}</b>
+              <b className={`tabular-nums ${opgCash < -0.005 ? "text-[#8b0000]" : opgCash > 0.005 ? "text-[#0a7a3f]" : ""}`}>{f2(opgCash)}</b>
               {carry?.lastBillNo != null && <span className="ml-1 text-[#666]">(after bill No. {carry.lastBillNo})</span>}
             </span>
             <span>
               After this bill: Pure <b className="tabular-nums">{f3(acctClosingPure)}</b> · Cash{" "}
-              <b className={`tabular-nums ${acctClosingCash > 0.005 ? "text-[#8b0000]" : acctClosingCash < -0.005 ? "text-[#0a7a3f]" : ""}`}>{f2(acctClosingCash)}</b>
+              <b className={`tabular-nums ${acctClosingCash < -0.005 ? "text-[#8b0000]" : acctClosingCash > 0.005 ? "text-[#0a7a3f]" : ""}`}>{f2(acctClosingCash)}</b>
             </span>
             <span className="text-[11px] text-[#666]">
-              {acctClosingCash > 0.005 ? "customer owes" : acctClosingCash < -0.005 ? "we owe the customer" : "settled"}
+              {acctClosingCash < -0.005 ? "customer owes" : acctClosingCash > 0.005 ? "we owe the customer" : "settled"}
             </span>
             {ledger && ledger.rows.length > 0 && (
               <button className={`${btn} ml-auto`} onClick={() => setShowLedger((v) => !v)}>
@@ -593,7 +598,7 @@ export default function LogimaxEntryForm({
                   </tr>
                 </tbody>
               </table>
-              <p className="mt-1 text-[11px] text-[#666]">Money the customer paid shows negative; a positive closing balance is what they still owe, a negative one is what we owe them.</p>
+              <p className="mt-1 text-[11px] text-[#666]">Money the customer paid shows negative. A negative closing balance is what they still owe; a positive one is what we owe them.</p>
             </div>
           )}
         </div>
@@ -695,11 +700,11 @@ export default function LogimaxEntryForm({
 
           <button
             type="button"
-            onClick={() => { setMcCashRecd(String(round2(nn(mcCashRecd) + recon.closingCash))); touch(); }}
+            onClick={() => { setMcCashRecd(String(round2(nn(mcCashRecd) - recon.closingCash))); touch(); }}
             className={`${btn} mt-2`}
             title="Put the full remaining bill amount into M.C. Cash Recd."
           >
-            ⤵ {isPurchase ? "Pay full amount in cash" : "Receive full amount in cash"}{Math.abs(recon.closingCash) > 0.005 ? ` (₹${f2(Math.abs(round2(nn(mcCashRecd) + recon.closingCash)))})` : ""}
+            ⤵ {isPurchase ? "Pay full amount in cash" : "Receive full amount in cash"}{Math.abs(recon.closingCash) > 0.005 ? ` (₹${f2(Math.abs(round2(nn(mcCashRecd) - recon.closingCash)))})` : ""}
           </button>
 
           {/* Pure / Cash reconciliation grid */}
@@ -729,7 +734,7 @@ export default function LogimaxEntryForm({
             </div>
           </div>
           <p className="mt-1 text-[11px] text-[#666]">
-            Receipts show negative. Clsg. Bal. is what is still owed on this bill — 0 when it is settled.
+            Clsg. Bal. is received minus the bill: negative while the customer still owes, 0 when settled.
           </p>
         </div>
       </div>

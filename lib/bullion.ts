@@ -90,10 +90,13 @@ const sumPure = (rows: ReconLine[]) => round3(rows.reduce((a, r) => a + pure(r.w
 /**
  * Full two-ledger reconciliation matching the Logimax entry screen.
  *
- * Sign convention (confirmed against how they run their current system):
- * a receipt is money OFF the customer's account, so it reads NEGATIVE, and the
- * closing balance is what is still owed — POSITIVE while unpaid, exactly 0 when
- * the bill is settled, and 0 (not blank) when nothing has been received yet.
+ * Sign convention, as Logimax shows it (Ragul confirmed 2 Oct 2026):
+ * Clsg. Bal. = what was received minus what the bill is worth, so a customer
+ * who still OWES reads NEGATIVE (150000 bill, 50000 paid -> -100000), a settled
+ * bill reads 0, and a customer in credit reads positive. Pure follows the same
+ * rule. The receipt row shows money taken in as negative (receiptsSigned).
+ *
+ * (11 Sep 2026 briefly flipped this to owed-positive; that was a misreading.)
  */
 export function reconcile(inp: ReconInput): ReconResult {
   const salePure = sumPure(inp.saleLines);
@@ -116,17 +119,17 @@ export function reconcile(inp: ReconInput): ReconResult {
   const billValue = round2(totalPure * inp.ratePerGram);
   const receipts = round2(inp.mcCashRecd + inp.bankRecd + inp.cashBankRecd);
 
-  let closingPure = totalPure;
-  // Nothing received yet reads as 0 owed-less-paid on the cash line, not blank.
-  let closingCash = round2(-totalCash);
+  // owed reads negative on both ledgers
+  let closingPure = round3(-totalPure);
+  let closingCash = round2(totalCash);
 
   if (inp.conversion === "cash") {
-    // Convert the net pure to cash at rate/gram and net the receipts off it.
-    closingCash = round2(totalPure * inp.ratePerGram - totalCash);
+    // Convert the net pure to cash at rate/gram: received minus bill value.
+    closingCash = round2(totalCash - totalPure * inp.ratePerGram);
     closingPure = 0;
   } else if (inp.conversion === "pure") {
-    // Convert the net cash to pure at rate/gram and net it against the pure side.
-    closingPure = inp.ratePerGram ? round3(totalPure - totalCash / inp.ratePerGram) : totalPure;
+    // Convert the cash received into pure at rate/gram and net it off.
+    closingPure = inp.ratePerGram ? round3(totalCash / inp.ratePerGram - totalPure) : round3(-totalPure);
     closingCash = 0;
   }
 

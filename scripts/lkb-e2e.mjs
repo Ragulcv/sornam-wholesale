@@ -97,9 +97,9 @@ try {
   ok("bill 2 opens where bill 1 closed", near(bill2.openingCash, bill1.closingCash), `${bill2.openingCash} vs ${bill1.closingCash}`);
   ok("bill 2 with no receipt shows 0, not blank", bill2.cashReceipt === 0, `${bill2.cashReceipt}`);
   const owed = 600 * 15768;
-  ok("unpaid bill leaves the customer owing", near(bill2.closingCash, owed), `${bill2.closingCash} vs ${owed}`);
+  ok("unpaid bill leaves the customer owing (negative)", near(bill2.closingCash, -owed), `${bill2.closingCash} vs ${-owed}`);
   const cf = await getCarryForward(pRagul);
-  ok("next bill opens at the carried balance", near(cf.cash, owed), `${cf.cash}`);
+  ok("next bill opens at the carried balance", near(cf.cash, -owed), `${cf.cash}`);
   const cfMid = await getCarryForward(pRagul, rest.id);
   ok("editing a bill shows the position before it", near(cfMid.cash, bill2.openingCash), `${cfMid.cash}`);
 
