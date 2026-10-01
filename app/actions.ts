@@ -31,6 +31,7 @@ import {
   saveLotPosition,
   deleteLotPosition,
   recordDelivery,
+  unlinkDeliveriesForTransaction,
 } from "@/lib/queries/bookings";
 import { getOperator, listOperators } from "@/lib/queries/operators";
 import { updateSettings, getMessageTemplates } from "@/lib/queries/settings";
@@ -300,18 +301,26 @@ export async function createExpenseAction(input: ExpenseActionInput): Promise<Ac
 
 export async function deleteTransactionAction(id: string): Promise<void> {
   await requireSession();
+  // A deleted bill must hand its delivered grams back to the booking, or the
+  // booking stays "delivered" with nothing behind it.
+  await unlinkDeliveriesForTransaction(id);
   await deleteTransaction(id);
   revalidatePath("/");
   revalidatePath("/history");
   revalidatePath("/stock");
+  revalidatePath("/bookings");
+  revalidatePath("/pnl");
 }
 
 export async function bulkDeleteTransactionsAction(ids: string[]): Promise<void> {
   await requireSession();
+  for (const id of ids) await unlinkDeliveriesForTransaction(id);
   await bulkDeleteTransactions(ids);
   revalidatePath("/");
   revalidatePath("/history");
   revalidatePath("/stock");
+  revalidatePath("/bookings");
+  revalidatePath("/pnl");
 }
 
 // ---- Bookings -----------------------------------------------------------
