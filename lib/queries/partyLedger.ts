@@ -80,43 +80,52 @@ export async function getPartyLedger(partyId: string): Promise<PartyLedger | nul
     db.select().from(settlements).where(inArray(settlements.transactionId, ids)),
   ]);
 
-  const per = new Map<string, { pure: number; cash: number; cashRecd: number; bankRecd: number }>(
-    ids.map((id) => [id, { pure: 0, cash: 0, cashRecd: 0, bankRecd: 0 }]),
-  );
+  // Replay every bill exactly as the entry screen settled it, so the balance a
+  // customer carries into the next bill is the "After this bill" figure they
+  // saw on this one. A priced bill (rate > 0) converts its pure into cash at the
+  // bill rate, so it moves CASH only; an unpriced, metal-for-metal bill moves
+  // PURE. Adding both would count the same gold twice.
+  const per = new Map<string, { pure: number; cash: number; cashRecd: number; bankRecd: number }>();
+  for (const t of txns) {
+    if (t.trnType === "expense") continue; // shop costs, not the customer's account
+    const isPurchase = t.trnType === "purchase";
+    const tl = lines.filter((l) => l.transactionId === t.id);
+    const main = tl.filter((l) => l.kind === "sale" || l.kind === "purchase");
+    const ret = tl.filter((l) => l.kind === "sale_return" || l.kind === "purchase_return");
+    const mv = moves.filter((m) => m.transactionId === t.id);
+    const st = setls.filter((x) => x.transactionId === t.id);
 
-  for (const l of lines) {
-    const a = per.get(l.transactionId);
-    if (!a) continue;
-    // We sold to them (sale) or they returned a purchase -> they owe us.
-    const sign = l.kind === "sale" || l.kind === "purchase_return" ? 1 : -1;
-    a.pure += sign * num(l.pure);
-    a.cash += sign * num(l.amount);
+    const rate = t.barRate != null ? num(t.barRate) : main.length ? num(main[0].rate) : 0;
+    const totalPure =
+      main.reduce((a, l) => a + num(l.pure), 0) -
+      ret.reduce((a, l) => a + num(l.pure), 0) -
+      mv.reduce((a, m) => a + (m.direction === "received" ? 1 : -1) * num(m.pure), 0);
+
+    // money in the bill's own direction: a sale is paid TO us, a purchase BY us
+    const own = isPurchase ? "paid" : "received";
+    const amt = (mode: "cash" | "bank") =>
+      st.filter((x) => x.mode === mode).reduce((a, x) => a + (x.direction === own ? 1 : -1) * num(x.amount), 0);
+    const cashPaid = amt("cash"), bankPaid = amt("bank");
+    const payments = cashPaid + bankPaid;
+
+    const billPure = rate > 0 ? 0 : totalPure;
+    const billCash = rate > 0 ? totalPure * rate - payments : -payments;
+
+    // the account is kept from our side: positive = the customer owes us
+    const side = isPurchase ? -1 : 1;
+    per.set(t.id, {
+      pure: side * billPure,
+      cash: side * billCash,
+      cashRecd: -side * cashPaid, // a receipt shows negative; a payment we make shows positive
+      bankRecd: -side * bankPaid,
+    });
   }
-  for (const m of moves) {
-    const a = per.get(m.transactionId);
-    if (!a) continue;
-    // Metal they handed over reduces what they owe us in pure.
-    a.pure += (m.direction === "received" ? -1 : 1) * num(m.pure);
-  }
-  for (const s of setls) {
-    const a = per.get(s.transactionId);
-    if (!a) continue;
-    const amt = num(s.amount);
-    if (s.direction === "received") {
-      // Money in from the customer: negative on their account.
-      if (s.mode === "cash") a.cashRecd -= amt;
-      else a.bankRecd -= amt;
-      a.cash -= amt;
-    } else {
-      if (s.mode === "cash") a.cashRecd += amt;
-      else a.bankRecd += amt;
-      a.cash += amt;
-    }
-  }
+  // keep only bills that touch the customer's account
+  const kept = txns.filter((t) => per.has(t.id));
 
   let runPure = basePure;
   let runCash = baseCash;
-  const rows: LedgerRow[] = txns.map((t) => {
+  const rows: LedgerRow[] = kept.map((t) => {
     const a = per.get(t.id)!;
     const openingPure = round3(runPure);
     const openingCash = round2(runCash);

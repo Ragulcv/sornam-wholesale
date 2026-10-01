@@ -54,7 +54,8 @@ export interface BookingOpt {
 const nn = (s: string) => parseFloat(s) || 0;
 const f3 = (n: number) => n.toFixed(3);
 const f2 = (n: number) => n.toFixed(2);
-const blankSale = (): SaleRow => ({ bookingId: null, particulars: "Gold pure", weight: "", touch: "", rate: "0" });
+// Rate starts empty so an untyped rate falls back to Rate/Gm instead of saving a ₹0 line.
+const blankSale = (): SaleRow => ({ bookingId: null, particulars: "Gold pure", weight: "", touch: "", rate: "" });
 const blankMove = (): MoveRow => ({ particulars: "", weight: "", touch: "", aTouch: "" });
 const ITEM_OPTS = ["Gold pure", "Silver pure", "Gold bar", "Silver bar", "Coin", "Old gold", "Ornament"];
 
@@ -168,6 +169,7 @@ export default function LogimaxEntryForm({
   const nameRef = useRef<HTMLInputElement>(null);
 
   const touch = useCallback(() => setSavedLock(false), []);
+  const isPurchase = trnType === "purchase";
 
   const party = parties.find((p) => p.id === partyId) ?? null;
   const carry = carryState && carryState.forParty === partyId ? carryState : null;
@@ -213,8 +215,9 @@ export default function LogimaxEntryForm({
 
   // The customer's account after this bill: what they carried in, plus what
   // this bill leaves owing.
-  const acctClosingPure = round3(opgPure + recon.closingPure);
-  const acctClosingCash = round2(opgCash + recon.closingCash);
+  const side = trnType === "purchase" ? -1 : 1; // positive = the customer owes us
+  const acctClosingPure = round3(opgPure + side * recon.closingPure);
+  const acctClosingCash = round2(opgCash + side * recon.closingCash);
 
   const lineTotals = (rows: SaleRow[]) => {
     const wt = round3(rows.reduce((a, r) => a + nn(r.weight), 0));
@@ -313,8 +316,9 @@ export default function LogimaxEntryForm({
     setSales(d.lines.filter((l) => l.kind === "sale" || l.kind === "purchase").map(toRow));
     setReturns(d.lines.filter((l) => l.kind === "sale_return" || l.kind === "purchase_return").map(toRow));
     setMoves(d.movements.map((m) => ({ particulars: m.particulars ?? "", weight: String(m.weight), touch: m.touch != null ? String(m.touch) : "", aTouch: m.aTouch != null ? String(m.aTouch) : "" })));
-    const cashR = d.settlements.filter((s) => s.mode === "cash" && s.direction === "received").reduce((a, s) => a + s.amount, 0);
-    const bankR = d.settlements.filter((s) => s.mode === "bank" && s.direction === "received").reduce((a, s) => a + s.amount, 0);
+    const dir = d.trnType === "purchase" ? "paid" : "received";
+    const cashR = d.settlements.filter((s) => s.mode === "cash" && s.direction === dir).reduce((a, s) => a + s.amount, 0);
+    const bankR = d.settlements.filter((s) => s.mode === "bank" && s.direction === dir).reduce((a, s) => a + s.amount, 0);
     setMcCashRecd(cashR ? String(cashR) : "");
     setBankRecd(bankR ? String(bankR) : "");
     setStatus(`Editing bill No. ${d.serialNo}`);
@@ -383,6 +387,7 @@ export default function LogimaxEntryForm({
       return;
     }
     setSaving(true);
+    const moneyDir = (trnType === "purchase" ? "paid" : "received") as "paid" | "received";
     const saleKind = (trnType === "sales" ? "sale" : "purchase") as "sale" | "purchase";
     const retKind = (trnType === "sales" ? "sale_return" : "purchase_return") as "sale_return" | "purchase_return";
     const input: TxnActionInput = {
@@ -392,20 +397,22 @@ export default function LogimaxEntryForm({
       partyPhone: party ? party.phone ?? undefined : newPhone.trim() || undefined,
       metal,
       txnDate,
-      barRate: nn(barRate) || undefined,
+      // the conversion runs on Rate/Gm, so store it as the bill rate when Bar Rate is blank
+      barRate: nn(barRate) || nn(rateGm) || undefined,
       refNo: refNo || undefined,
       thru: thru || undefined,
       tdsAmount: 0,
       lines: [
-        ...sales.map((r) => ({ kind: saleKind, particulars: r.particulars, weight: nn(r.weight), touch: nn(r.touch) || 100, rate: nn(r.rate), bookingId: r.bookingId })),
-        ...returns.map((r) => ({ kind: retKind, particulars: r.particulars, weight: nn(r.weight), touch: nn(r.touch) || 100, rate: nn(r.rate), bookingId: null })),
+        ...sales.map((r) => ({ kind: saleKind, particulars: r.particulars, weight: nn(r.weight), touch: nn(r.touch) || 100, rate: nn(r.rate) || nn(rateGm), bookingId: r.bookingId })),
+        ...returns.map((r) => ({ kind: retKind, particulars: r.particulars, weight: nn(r.weight), touch: nn(r.touch) || 100, rate: nn(r.rate) || nn(rateGm), bookingId: null })),
       ],
       movements: moves
         .filter((m) => nn(m.weight) > 0)
         .map((m) => ({ direction: "received" as const, particulars: m.particulars, weight: nn(m.weight), touch: nn(m.touch) || undefined, aTouch: nn(m.aTouch) || undefined })),
       settlements: [
-        { mode: "cash" as const, direction: "received" as const, amount: round2(nn(mcCashRecd) + nn(cashBankRecd)) },
-        { mode: "bank" as const, direction: "received" as const, amount: nn(bankRecd) },
+        // a sale takes money in; a purchase pays it out
+        { mode: "cash" as const, direction: moneyDir, amount: round2(nn(mcCashRecd) + nn(cashBankRecd)) },
+        { mode: "bank" as const, direction: moneyDir, amount: nn(bankRecd) },
       ].filter((s) => s.amount > 0),
     };
     const wasEditing = editingId;
@@ -429,7 +436,6 @@ export default function LogimaxEntryForm({
     router.refresh();
   }
 
-  const isPurchase = trnType === "purchase";
   const title = isPurchase ? "PURCHASE ENTRIES" : "SALES ENTRIES";
   const mainGridLabel = isPurchase ? "PURCHASE" : "SALES";
   const returnGridLabel = isPurchase ? "PURCHASE RETURN" : "SALES RETURN";
@@ -586,7 +592,7 @@ export default function LogimaxEntryForm({
             <div className="mt-2 overflow-x-auto">
               <table className="w-full min-w-[720px] border-collapse bg-white">
                 <thead>
-                  <tr>{["Date", "No.", "Type", "Opg Pure", "Opg Cash", "Pure", "Cash", "Cash recd", "Bank recd", "Clsg Pure", "Clsg Cash", ""].map((h) => <th key={h} className={th}>{h}</th>)}</tr>
+                  <tr>{["Date", "No.", "Type", "Opg Pure", "Opg Cash", "Pure", "Cash", "Cash paid", "Bank paid", "Clsg Pure", "Clsg Cash", ""].map((h) => <th key={h} className={th}>{h}</th>)}</tr>
                 </thead>
                 <tbody>
                   <tr className="bg-[#eef1f4]">
@@ -619,7 +625,7 @@ export default function LogimaxEntryForm({
                   </tr>
                 </tbody>
               </table>
-              <p className="mt-1 text-[11px] text-[#666]">Receipts are shown negative; a positive closing balance is what the customer still owes.</p>
+              <p className="mt-1 text-[11px] text-[#666]">Money the customer paid shows negative; a positive closing balance is what they still owe, a negative one is what we owe them.</p>
             </div>
           )}
         </div>
@@ -706,17 +712,17 @@ export default function LogimaxEntryForm({
               <span className={lbl}>Cash</span>
               <input inputMode="decimal" value={intDisCash} onChange={(e) => { setIntDisCash(e.target.value); touch(); }} className={`${fld} ${num}`} />
 
-              <span className={lbl}>M.C. Cash Recd.</span>
+              <span className={lbl}>{isPurchase ? "M.C. Cash Paid" : "M.C. Cash Recd."}</span>
               <input inputMode="decimal" value={mcCashRecd} onChange={(e) => { setMcCashRecd(e.target.value); touch(); }} className={`${fld} ${num}`} />
-              <span className={lbl}>Bank Recd</span>
+              <span className={lbl}>{isPurchase ? "Bank Paid" : "Bank Recd"}</span>
               <input inputMode="decimal" value={bankRecd} onChange={(e) => { setBankRecd(e.target.value); touch(); }} className={`${fld} ${num}`} />
             </div>
           </div>
 
           {/* the money spelled out, so a long figure can be checked at a glance */}
           <div className="mt-1 flex flex-col gap-[2px] text-[11px] text-[#444]">
-            <span><b>Cash Recd:</b> {nn(mcCashRecd) ? rupeesInWords(nn(mcCashRecd)) : "—"}</span>
-            <span><b>Bank Recd:</b> {nn(bankRecd) ? rupeesInWords(nn(bankRecd)) : "—"}</span>
+            <span><b>{isPurchase ? "Cash Paid" : "Cash Recd"}:</b> {nn(mcCashRecd) ? rupeesInWords(nn(mcCashRecd)) : "—"}</span>
+            <span><b>{isPurchase ? "Bank Paid" : "Bank Recd"}:</b> {nn(bankRecd) ? rupeesInWords(nn(bankRecd)) : "—"}</span>
           </div>
 
           <button
@@ -725,7 +731,7 @@ export default function LogimaxEntryForm({
             className={`${btn} mt-2`}
             title="Put the full remaining bill amount into M.C. Cash Recd."
           >
-            ⤵ Receive full amount in cash{Math.abs(recon.closingCash) > 0.005 ? ` (₹${f2(Math.abs(round2(nn(mcCashRecd) + recon.closingCash)))})` : ""}
+            ⤵ {isPurchase ? "Pay full amount in cash" : "Receive full amount in cash"}{Math.abs(recon.closingCash) > 0.005 ? ` (₹${f2(Math.abs(round2(nn(mcCashRecd) + recon.closingCash)))})` : ""}
           </button>
 
           {/* Pure / Cash reconciliation grid */}
@@ -741,7 +747,7 @@ export default function LogimaxEntryForm({
               <label className="flex items-center gap-1"><input type="checkbox" checked={conversion === "pure"} onChange={(e) => { setConversion(e.target.checked ? "pure" : null); touch(); }} />Pure</label>
               <label className="flex items-center gap-1"><input type="checkbox" checked={conversion === "cash"} onChange={(e) => { setConversion(e.target.checked ? "cash" : null); touch(); }} />Cash</label>
 
-              <span className="font-bold">Cash/Bank Recd</span>
+              <span className="font-bold">{isPurchase ? "Cash/Bank Paid" : "Cash/Bank Recd"}</span>
               <input inputMode="decimal" value={cashBankRecd} onChange={(e) => { setCashBankRecd(e.target.value); touch(); }} className={`${fld} ${num}`} />
               <input readOnly value={f2(recon.receiptsSigned)} className={`${roFld} ${num} ${recon.receiptsSigned < 0 ? "text-[#8b0000]" : ""}`} title="Money received is shown negative" />
 

@@ -638,8 +638,8 @@ function PositionSheet({ bookings, lots }: { bookings: BookingRow[]; lots: LotRo
             {pos.hedged
               ? "Book and MCX are square."
               : pos.actionLots > 0
-                ? `Under-hedged — BUY ${pos.actionLots.toFixed(3)} lot(s) on MCX to flatten.`
-                : `Over-hedged — SELL ${Math.abs(pos.actionLots).toFixed(3)} lot(s) on MCX to flatten.`}
+                ? `Not square — BUY ${pos.actionLots.toFixed(3)} lot(s) on MCX to flatten.`
+                : `Not square — SELL ${Math.abs(pos.actionLots).toFixed(3)} lot(s) on MCX to flatten.`}
           </span>
           <span className="ml-auto text-[11px] text-[#666]">book {pos.bookLots.toFixed(3)} + MCX {pos.mcxLots.toFixed(3)} = {pos.netLots.toFixed(3)}</span>
         </div>

@@ -53,7 +53,10 @@ const trnOf = (side: BookSide) => (side === "buy" ? ("purchase" as const) : ("sa
 
 function toRow(b: typeof bookings.$inferSelect, pName: string | null, pPhone: string | null): BookingRow {
   const weight = num(b.weightBooked);
-  const delivered = num(b.deliveredWeight);
+  // Bookings closed under the old system were marked delivered without a
+  // delivered weight. Read them as fully delivered, or they reappear as pending.
+  const delivered =
+    b.status === "delivered" && num(b.deliveredWeight) === 0 ? weight : num(b.deliveredWeight);
   const rate = b.lockedRate == null ? null : num(b.lockedRate);
   const mcxRate = b.mcxRate == null ? null : num(b.mcxRate);
   const c = computeBooking({

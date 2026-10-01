@@ -41,7 +41,7 @@ for (const s of ["R SELL", "R BUY", "F SELL", "F BUY", "UF SELL", "UF BUY", "CUS
 const entryHtml = await (await get("/entry")).text();
 ok("entry has the booking picker", entryHtml.includes("Booking…"));
 ok("entry no longer offers a Live rate button", !/>Live</.test(entryHtml));
-ok("entry shows Bank Recd in words", entryHtml.includes("Bank Recd:"));
+ok("entry shows Bank Recd in words", /Bank Recd(<!-- -->)?:/.test(entryHtml));
 ok("entry shows the carried-forward labels", entryHtml.includes("OpgPure") && entryHtml.includes("OpgCash"));
 
 const pnlHtml = await (await get("/pnl")).text();
