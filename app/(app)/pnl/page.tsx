@@ -118,7 +118,9 @@ export default async function PnlPage({
                 <td className={numCell}>{d.costRate ? fmtMoney(d.costRate) : ""}</td>
                 <td className={numCell}>{d.sellWeight || d.grossProfit ? money(d.grossProfit, true) : ""}</td>
                 <td className={numCell}>{d.mcxClose != null ? <span className={d.mcxCloseCarried ? "text-mute" : ""} title={d.mcxCloseCarried ? "no close entered this day; previous close reused" : ""}>{fmtMoney(d.mcxClose)}{d.mcxCloseCarried ? "*" : ""}</span> : ""}</td>
-                <td className={numCell}>{d.mcxRealised ? money(d.mcxRealised, true) : ""}</td>
+                <td className={numCell}>
+                  {d.mcxRealised ? money(d.mcxRealised, true) : d.mcxTrades ? <span className="text-mute">{d.mcxTrades} MCX trade{d.mcxTrades > 1 ? "s" : ""}, still open</span> : ""}
+                </td>
                 <td className={numCell}>{d.mcxPnl ? money(d.mcxPnl, true) : ""}</td>
                 <td className={numCell}>{d.expenses ? fmtMoney(d.expenses) : ""}</td>
                 <td className={`${numCell} font-semibold`}>{money(d.total, true)}</td>

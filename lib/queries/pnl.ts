@@ -195,6 +195,8 @@ export interface FullPnlDay extends PnlDay {
   mcxPnl: number; // booked that day + change in open value
   mcxClose: number | null;
   mcxCloseCarried: boolean;
+  /** MCX trades entered that day */
+  mcxTrades: number;
   total: number; // physical gross + MCX - expenses
 }
 
@@ -235,6 +237,7 @@ export async function getFullPnl(filter?: { from?: string; to?: string }): Promi
       mcxPnl,
       mcxClose: m?.close ?? null,
       mcxCloseCarried: m?.closeCarried ?? false,
+      mcxTrades: m?.trades ?? 0,
       total: round2(p.grossProfit + mcxPnl - p.expenses),
     };
   });
