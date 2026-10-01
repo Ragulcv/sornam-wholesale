@@ -98,15 +98,15 @@ export default function McxTradesSheet({ mcx }: { mcx: McxSummary }) {
         <div className="overflow-x-auto">
           <div className="grid min-w-[820px] grid-cols-[120px_1fr_110px_80px_120px_1fr_auto] gap-1">
             {["DATE", "MCX ID", "BUY / SELL", "LOTS", "PRICE /10g", "REMARKS", ""].map((h) => <span key={h} className="text-[10px] font-bold uppercase tracking-wide text-[#5b6b6b]">{h}</span>)}
-            <input type="date" value={draft.day} onChange={(e) => setDraft({ ...draft, day: e.target.value })} className={cellInp} />
-            <input list="mcx-ids" value={draft.account} onChange={(e) => setDraft({ ...draft, account: e.target.value })} onKeyDown={onEnter} placeholder="e.g. MCX ID 1" className={cellInp} />
-            <select value={draft.side} onChange={(e) => setDraft({ ...draft, side: e.target.value as "buy" | "sell" })} className={`${cellInp} font-semibold ${draft.side === "buy" ? "text-[#0a7a3f]" : "text-[#8b0000]"}`}>
+            <input aria-label="Trade date" type="date" value={draft.day} onChange={(e) => setDraft({ ...draft, day: e.target.value })} className={cellInp} />
+            <input aria-label="MCX ID" list="mcx-ids" value={draft.account} onChange={(e) => setDraft({ ...draft, account: e.target.value })} onKeyDown={onEnter} placeholder="e.g. MCX ID 1" className={cellInp} />
+            <select aria-label="Buy or sell" value={draft.side} onChange={(e) => setDraft({ ...draft, side: e.target.value as "buy" | "sell" })} className={`${cellInp} font-semibold ${draft.side === "buy" ? "text-[#0a7a3f]" : "text-[#8b0000]"}`}>
               <option value="buy">BUY</option>
               <option value="sell">SELL</option>
             </select>
-            <input inputMode="decimal" value={draft.lots} onChange={(e) => setDraft({ ...draft, lots: e.target.value })} onKeyDown={onEnter} className={`${cellInp} text-right`} />
-            <input inputMode="decimal" value={draft.price} onChange={(e) => setDraft({ ...draft, price: e.target.value })} onKeyDown={onEnter} placeholder="148000" className={`${cellInp} text-right`} />
-            <input value={draft.remarks} onChange={(e) => setDraft({ ...draft, remarks: e.target.value })} onKeyDown={onEnter} className={cellInp} />
+            <input aria-label="Lots" inputMode="decimal" value={draft.lots} onChange={(e) => setDraft({ ...draft, lots: e.target.value })} onKeyDown={onEnter} className={`${cellInp} text-right`} />
+            <input aria-label="Price per 10 g" inputMode="decimal" value={draft.price} onChange={(e) => setDraft({ ...draft, price: e.target.value })} onKeyDown={onEnter} placeholder="148000" className={`${cellInp} text-right`} />
+            <input aria-label="Remarks" value={draft.remarks} onChange={(e) => setDraft({ ...draft, remarks: e.target.value })} onKeyDown={onEnter} className={cellInp} />
             <button className={btnGo} onClick={add} disabled={busy}>{busy ? "…" : "Add"}</button>
           </div>
           <datalist id="mcx-ids">{accounts.map((a) => <option key={a} value={a} />)}</datalist>
@@ -123,11 +123,11 @@ export default function McxTradesSheet({ mcx }: { mcx: McxSummary }) {
       <div className="flex flex-wrap items-end gap-2 border border-[#c3d4d4] bg-[#f7faf9] px-3 py-2">
         <div>
           <div className="text-[10px] font-bold uppercase tracking-wide text-[#5b6b6b]">MCX closing rate for</div>
-          <input type="date" value={closeDay} onChange={(e) => setCloseDay(e.target.value)} className={`${cellInp} w-[140px]`} />
+          <input aria-label="Close date" type="date" value={closeDay} onChange={(e) => setCloseDay(e.target.value)} className={`${cellInp} w-[140px]`} />
         </div>
         <div>
           <div className="text-[10px] font-bold uppercase tracking-wide text-[#5b6b6b]">Close /10g</div>
-          <input inputMode="decimal" value={closePrice} onChange={(e) => setClosePrice(e.target.value)} placeholder={close ? String(close.price) : "148500"} className={`${cellInp} w-[120px] text-right`}
+          <input aria-label="MCX close per 10 g" inputMode="decimal" value={closePrice} onChange={(e) => setClosePrice(e.target.value)} placeholder={close ? String(close.price) : "148500"} className={`${cellInp} w-[120px] text-right`}
             onKeyDown={(e) => { if (e.key === "Enter") run(() => saveMcxCloseAction(closeDay, nn(closePrice)), `Close saved for ${dmy(closeDay)}.`, () => setClosePrice("")); }} />
         </div>
         <button className={btnGo} disabled={busy} onClick={() => run(() => saveMcxCloseAction(closeDay, nn(closePrice)), `Close saved for ${dmy(closeDay)}.`, () => setClosePrice(""))}>Save close</button>
