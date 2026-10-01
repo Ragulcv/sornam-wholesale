@@ -1,0 +1,13 @@
+services:
+  sornam-backup:
+    build: .
+    container_name: sornam-backup
+    restart: unless-stopped
+    env_file: .env
+    # localhost only: Caddy fronts it with HTTPS, exactly like the price feed
+    ports:
+      - "127.0.0.1:4100:4100"
+    volumes:
+      - backup-data:/backups
+volumes:
+  backup-data:

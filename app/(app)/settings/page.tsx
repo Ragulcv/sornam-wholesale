@@ -1,6 +1,7 @@
 import { getSettings } from "@/lib/auth";
 import { PageHeader } from "@/components/ui";
 import SettingsForm from "./SettingsForm";
+import BackupCard from "@/components/BackupCard";
 
 export const dynamic = "force-dynamic";
 
@@ -8,7 +9,7 @@ export default async function SettingsPage() {
   const s = await getSettings();
   return (
     <>
-      <PageHeader title="Settings" subtitle="Security, tax, default rates, and the wording of every WhatsApp message." />
+      <PageHeader title="Settings" subtitle="Security, tax, default rates, WhatsApp wording, and the nightly backup." />
       <SettingsForm
         autoLogoffMinutes={s.autoLogoffMinutes}
         gstin={s.gstin ?? ""}
@@ -21,6 +22,9 @@ export default async function SettingsPage() {
         purchaseTemplate={s.purchaseTemplate ?? ""}
         deliveredTemplate={s.deliveredTemplate ?? ""}
       />
+      <div className="max-w-3xl">
+        <BackupCard />
+      </div>
     </>
   );
 }
