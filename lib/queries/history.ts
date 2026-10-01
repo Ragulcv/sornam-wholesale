@@ -3,7 +3,7 @@ import { and, desc, eq, gte, inArray, lte, sql } from "drizzle-orm";
 import { db } from "../db";
 import { transactions, transactionLines, metalMovements, settlements, parties } from "../db/schema";
 import { round2, round3 } from "../bullion";
-import { dayStart, dayEnd } from "../dates";
+import { dayStart, dayEnd, dayKey } from "../dates";
 
 export interface HistoryRow {
   id: string;
@@ -56,6 +56,11 @@ export async function listHistory(filter?: {
     .where(cond.length ? and(...cond) : undefined)
     .orderBy(desc(transactions.txnDate), desc(transactions.serialNo));
 
+  // Within a day, the order things were entered (bill number) is the order they
+  // happened. The stored time of day is not reliable for that: bills saved at
+  // different times can share a date, and older rows carry a different
+  // time-of-day, so sort on the India-time day, then the bill number.
+  txns.sort((a, b) => dayKey(b.t.txnDate).localeCompare(dayKey(a.t.txnDate)) || b.t.serialNo - a.t.serialNo);
   const ids = txns.map((r) => r.t.id);
   if (ids.length === 0) return [];
 

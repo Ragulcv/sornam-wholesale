@@ -2,7 +2,7 @@ import "server-only";
 import { desc, eq, inArray } from "drizzle-orm";
 import { db } from "../db";
 import { transactions, transactionLines, metalMovements, settlements } from "../db/schema";
-import { dayStart } from "../dates";
+import { dayStart, dayKey } from "../dates";
 import { pure, lineAmount, round2 } from "../bullion";
 import type { TxnInput } from "./transactions";
 
@@ -100,8 +100,9 @@ export async function getPartyTxnHistory(partyId: string, limit = 20): Promise<P
     .select({ t: transactions })
     .from(transactions)
     .where(eq(transactions.partyId, partyId))
-    .orderBy(desc(transactions.txnDate))
+    .orderBy(desc(transactions.txnDate), desc(transactions.serialNo))
     .limit(limit);
+  rows.sort((a, b) => dayKey(b.t.txnDate).localeCompare(dayKey(a.t.txnDate)) || b.t.serialNo - a.t.serialNo);
   const ids = rows.map((r) => r.t.id);
   if (!ids.length) return [];
   const lines = await db.select().from(transactionLines).where(inArray(transactionLines.transactionId, ids));

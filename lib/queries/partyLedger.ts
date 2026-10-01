@@ -3,7 +3,7 @@ import { asc, eq, inArray } from "drizzle-orm";
 import { db } from "../db";
 import { parties, transactions, transactionLines, metalMovements, settlements } from "../db/schema";
 import { round2, round3 } from "../bullion";
-import { dayStart, dayEnd } from "../dates";
+import { dayStart, dayEnd, dayKey } from "../dates";
 
 const num = (v: string | null): number => (v == null ? 0 : parseFloat(v));
 
@@ -58,6 +58,8 @@ export async function getPartyLedger(partyId: string): Promise<PartyLedger | nul
     .from(transactions)
     .where(eq(transactions.partyId, partyId))
     .orderBy(asc(transactions.txnDate), asc(transactions.serialNo));
+  // chain bills in the order they were entered within each India-time day
+  txns.sort((a, b) => dayKey(a.txnDate).localeCompare(dayKey(b.txnDate)) || a.serialNo - b.serialNo);
 
   const basePure = round3(num(p.openingPureGold) + num(p.openingPureSilver));
   const baseCash = round2(num(p.openingCash));
