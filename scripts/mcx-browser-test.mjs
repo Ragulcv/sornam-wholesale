@@ -31,7 +31,9 @@ try {
   ok("MCX TRADES tab exists", await clickBtn("MCX TRADES")); await W(800);
   let t = await text();
   ok("tab shows the register and the close box", /record an mcx trade/i.test(t) && /mcx closing rate for/i.test(t));
-  ok("your migrated opening lot is flagged 'no price'", /no price/i.test(t));
+  // any trade still missing a price must be flagged; none missing = nothing flagged
+  const unpriced = (await db.select().from(S.mcxTrades)).filter((x) => x.price == null).length;
+  ok(unpriced ? "trades without a price are flagged 'no price'" : "no unpriced trades, and none flagged", unpriced ? /no price/i.test(t) : !/no price/i.test(t), `${unpriced} unpriced`);
 
   // record a trade: every field found by its label
   const L = (name) => `[aria-label="${name}"]`;
