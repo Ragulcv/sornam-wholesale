@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import { db } from "../db";
 import { stock, transactions, transactionLines, metalMovements, settlements } from "../db/schema";
 import { round2, round3 } from "../bullion";
+import { dayStart, dayEnd } from "../dates";
 
 const num = (v: string | null): number => (v == null ? 0 : parseFloat(v));
 
@@ -44,8 +45,8 @@ export async function getStock(): Promise<StockView> {
   const metalOf = new Map(txns.map((t) => [t.id, t.metal]));
   const dateOf = new Map(txns.map((t) => [t.id, t.txnDate]));
 
-  const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
-  const todayEnd = new Date(); todayEnd.setHours(23, 59, 59, 999);
+  const todayStart = dayStart();
+  const todayEnd = dayEnd();
   // buckets: metal (gold/silver pure) + cash + bank, split by before-today / today
   const z = () => ({ g: 0, s: 0, cash: 0, bank: 0 });
   const before = z(), today = z(), rest = z(); // rest = future-dated

@@ -112,7 +112,17 @@ try {
   ok("Bank Recd field found and filled", hit === "ok", hit);
   txt = await bodyText();
   ok("bank receipt spelled out in English", txt.includes("Rupees Two Lakh Fifty Thousand Only"), "Bank Recd words");
-  ok("receipt shown as a negative figure", txt.includes("-250000.00"));
+  // read the reconciliation boxes themselves (input values never appear in innerText)
+  const box = (lab) => page.evaluate((l) => {
+    const sp = [...document.querySelectorAll("span")].find((x) => x.textContent.trim() === l);
+    const out = []; let el = sp?.nextElementSibling;
+    while (el && out.length < 2) { const i = el.tagName === "INPUT" ? el : el.querySelector?.("input"); if (i && i.readOnly) out.push(i.value); el = el.nextElementSibling; }
+    return out;
+  }, lab);
+  const recd = await box("Cash/Bank Recd"), total = await box("Total."), clsg = await box("Clsg. Bal.");
+  ok("receipt shown as a negative figure", recd[0] === "-250000.00", recd.join(" | "));
+  ok("booked gold counts in Total. with Touch left empty (as 100)", total[0] === "1000.000" && total[1] === "15768000.00", total.join(" | "));
+  ok("Clsg. Bal. = received - bill (owed reads negative)", clsg[1] === "-15518000.00", clsg.join(" | "));
 
   // ------------------------------------------------------------ save & clear
   console.log("\n[6] Save clears the form and locks the button");

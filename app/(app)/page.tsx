@@ -5,6 +5,7 @@ import { getSettings } from "@/lib/auth";
 import { PageHeader, Card, StatTile } from "@/components/ui";
 import { fmtMoney, fmtWeight, fmtDate, metalLabel } from "@/lib/format";
 import LivePriceStrip from "@/components/LivePriceStrip";
+import { SHOP_TZ } from "@/lib/dates";
 
 export const dynamic = "force-dynamic";
 
@@ -25,7 +26,7 @@ export default async function TodayPage() {
     <>
       <PageHeader
         title="Today"
-        subtitle={new Date().toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
+        subtitle={new Date().toLocaleDateString("en-IN", { timeZone: SHOP_TZ, weekday: "long", day: "numeric", month: "long", year: "numeric" })}
         action={<Link href="/entry" className="gold-grad rounded-xl px-4 py-2.5 text-sm font-bold text-onyx">+ New entry</Link>}
       />
 

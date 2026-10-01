@@ -104,7 +104,8 @@ export async function createTransaction(
       weight: String(m.weight),
       touch: m.touch != null ? String(m.touch) : null,
       aTouch: m.aTouch != null ? String(m.aTouch) : null,
-      pure: String(pure(m.weight, m.touch ?? 0)),
+      // pure on A.Touch (the assayed touch), exactly as the entry screen shows it
+      pure: String(pure(m.weight, m.aTouch ?? m.touch ?? 0)),
     }));
   if (moveRows.length) await db.insert(metalMovements).values(moveRows);
 

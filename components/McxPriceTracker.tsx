@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { PageHeader, Card } from "@/components/ui";
+import { SHOP_TZ } from "@/lib/dates";
 
 // ---- types (mirror the price-feed payloads) ----
 type Metal = "gold" | "silver";
@@ -33,7 +34,7 @@ const inr0 = new Intl.NumberFormat("en-IN", { maximumFractionDigits: 0 });
 const inr2 = new Intl.NumberFormat("en-IN", { maximumFractionDigits: 2 });
 const rup = (n: number, dp = 0) => `₹${(dp === 2 ? inr2 : inr0).format(n)}`;
 const timeLabel = (iso: string) =>
-  new Date(iso).toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
+  new Date(iso).toLocaleString("en-IN", { timeZone: SHOP_TZ, day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
 
 // datetime-local <-> UTC helpers
 const pad = (n: number) => String(n).padStart(2, "0");
@@ -166,7 +167,7 @@ function PriceChart({
         {/* x labels */}
         {xTickIdx.map((i) => (
           <text key={i} x={xOf(i)} y={H - 8} textAnchor="middle" fontSize={10.5} fill="#8a8478">
-            {new Date(pts[i].t).toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
+            {new Date(pts[i].t).toLocaleString("en-IN", { timeZone: SHOP_TZ, day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
           </text>
         ))}
         <path d={area} fill="url(#mcxfill)" />
@@ -479,7 +480,7 @@ export default function McxPriceTracker({ initialCurrent }: { initialCurrent: Cu
         {lookup && (
           <div className="mt-4 rounded-xl border border-line bg-pearl p-4">
             <div className="text-xs text-mute">
-              {lookup.metal === "gold" ? "Gold" : "Silver"} rate as of {new Date(lookup.asked).toLocaleString("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+              {lookup.metal === "gold" ? "Gold" : "Silver"} rate as of {new Date(lookup.asked).toLocaleString("en-IN", { timeZone: SHOP_TZ, day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
               <span className="text-mute"> · nearest recorded tick {timeLabel(lookup.row.fetched_at)}</span>
             </div>
             <div className="num mt-1 text-2xl font-bold text-ink">

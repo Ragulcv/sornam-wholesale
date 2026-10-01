@@ -25,7 +25,7 @@ import {
 } from "@/app/(app)/entry/actions";
 import { pure, lineAmount, round2, round3, reconcile } from "@/lib/bullion";
 import { rupeesInWords } from "@/lib/words";
-import { todayKey, dayKey } from "@/lib/dates";
+import { todayKey, dayKey, SHOP_TZ } from "@/lib/dates";
 import PartyPicker from "@/components/PartyPicker";
 import type { BookType, BookSide } from "@/lib/lkb";
 // Type-only import: erased at compile time, so the server-only module is never
@@ -53,6 +53,9 @@ export interface BookingOpt {
 }
 
 const nn = (s: string) => parseFloat(s) || 0;
+// An empty Touch means fine metal (100), which is what the bill is saved with.
+// The screen must use the same rule, or Total / Clsg. Bal. ignore the gold.
+const tch = (s: string) => (s.trim() === "" ? 100 : nn(s));
 const f3 = (n: number) => n.toFixed(3);
 const f2 = (n: number) => n.toFixed(2);
 // Rate starts empty so an untyped rate falls back to Rate/Gm instead of saving a ₹0 line.
@@ -195,8 +198,8 @@ export default function LogimaxEntryForm({
   const recon = useMemo(
     () =>
       reconcile({
-        saleLines: sales.map((r) => ({ weight: nn(r.weight), touch: nn(r.touch) })),
-        returnLines: returns.map((r) => ({ weight: nn(r.weight), touch: nn(r.touch) })),
+        saleLines: sales.map((r) => ({ weight: nn(r.weight), touch: tch(r.touch) })),
+        returnLines: returns.map((r) => ({ weight: nn(r.weight), touch: tch(r.touch) })),
         metalMoves: moves.map((m) => ({ weight: nn(m.weight), aTouch: nn(m.aTouch), dir: "received" as const })),
         ratePerGram: nn(rateGm),
         intDisPure: nn(intDisPure),
@@ -219,7 +222,7 @@ export default function LogimaxEntryForm({
 
   const lineTotals = (rows: SaleRow[]) => {
     const wt = round3(rows.reduce((a, r) => a + nn(r.weight), 0));
-    const pu = round3(rows.reduce((a, r) => a + pure(nn(r.weight), nn(r.touch)), 0));
+    const pu = round3(rows.reduce((a, r) => a + pure(nn(r.weight), tch(r.touch)), 0));
     const amt = round2(rows.reduce((a, r) => a + lineAmount(nn(r.weight), nn(r.rate)), 0));
     return { wt, pu, amt };
   };
@@ -290,7 +293,7 @@ export default function LogimaxEntryForm({
     partyHistoryAction(id)
       .then((rows) => {
         if (!alive) return;
-        setHistory({ forParty: id, rows: rows.map((r) => ({ id: r.id, serialNo: r.serialNo, trnType: r.trnType, date: new Date(r.txnDate).toLocaleDateString("en-IN"), gross: r.gross })) });
+        setHistory({ forParty: id, rows: rows.map((r) => ({ id: r.id, serialNo: r.serialNo, trnType: r.trnType, date: new Date(r.txnDate).toLocaleDateString("en-IN", { timeZone: SHOP_TZ }), gross: r.gross })) });
       })
       .catch(() => {});
     return () => { alive = false; };
@@ -401,8 +404,8 @@ export default function LogimaxEntryForm({
       thru: thru || undefined,
       tdsAmount: 0,
       lines: [
-        ...sales.map((r) => ({ kind: saleKind, particulars: r.particulars, weight: nn(r.weight), touch: nn(r.touch) || 100, rate: nn(r.rate) || nn(rateGm), bookingId: r.bookingId })),
-        ...returns.map((r) => ({ kind: retKind, particulars: r.particulars, weight: nn(r.weight), touch: nn(r.touch) || 100, rate: nn(r.rate) || nn(rateGm), bookingId: null })),
+        ...sales.map((r) => ({ kind: saleKind, particulars: r.particulars, weight: nn(r.weight), touch: tch(r.touch), rate: nn(r.rate) || nn(rateGm), bookingId: r.bookingId })),
+        ...returns.map((r) => ({ kind: retKind, particulars: r.particulars, weight: nn(r.weight), touch: tch(r.touch), rate: nn(r.rate) || nn(rateGm), bookingId: null })),
       ],
       movements: moves
         .filter((m) => nn(m.weight) > 0)
@@ -480,7 +483,7 @@ export default function LogimaxEntryForm({
       {findRows && (
         <div className="mb-3 border border-[#7f9db9] bg-[#f7f7f0] p-2">
           <div className="mb-1 flex items-center gap-2 text-[12px] font-bold">
-            Bills on {new Date(findDate).toLocaleDateString("en-IN")} ({findRows.length})
+            Bills on {new Date(findDate).toLocaleDateString("en-IN", { timeZone: SHOP_TZ })} ({findRows.length})
             <button className={`${btn} ml-auto`} onClick={() => setFindRows(null)}>Close</button>
           </div>
           {findRows.length === 0 ? (
@@ -576,7 +579,7 @@ export default function LogimaxEntryForm({
                   </tr>
                   {ledger.rows.map((r) => (
                     <tr key={r.txnId}>
-                      <td className={td}>{new Date(r.txnDate).toLocaleDateString("en-IN")}</td>
+                      <td className={td}>{new Date(r.txnDate).toLocaleDateString("en-IN", { timeZone: SHOP_TZ })}</td>
                       <td className={`${td} ${num}`}>{r.serialNo}</td>
                       <td className={`${td} capitalize`}>{r.trnType}</td>
                       <td className={`${td} ${num}`}>{f3(r.openingPure)}</td>
@@ -815,7 +818,7 @@ function LineGrid({
       </thead>
       <tbody>
         {rows.map((r, i) => {
-          const w = nn(r.weight), p = pure(w, nn(r.touch)), amt = lineAmount(w, nn(r.rate));
+          const w = nn(r.weight), p = pure(w, tch(r.touch)), amt = lineAmount(w, nn(r.rate));
           const bk = r.bookingId ? bookings.find((b) => b.id === r.bookingId) : null;
           return (
             <tr key={i}>
@@ -824,7 +827,7 @@ function LineGrid({
               <td className={td}>{r.particulars || "—"}</td>
               <td className={`${td} ${num}`}>{f3(w)}</td>
               <td className={`${td} ${num}`}>{f3(w)}</td>
-              <td className={`${td} ${num}`}>{f3(nn(r.touch))}</td>
+              <td className={`${td} ${num}`}>{f3(tch(r.touch))}</td>
               <td className={`${td} ${num}`}>{f3(p)}</td>
               <td className={`${td} ${num}`}>{f2(nn(r.rate))}</td>
               <td className={`${td} ${num}`}>{f2(amt)}</td>

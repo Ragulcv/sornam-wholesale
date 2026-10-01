@@ -1,5 +1,6 @@
 // Display formatters. Rate is always per gram.
 import type { PayMode } from "./bullion";
+import { SHOP_TZ } from "./dates";
 
 const inr = new Intl.NumberFormat("en-IN", {
   style: "currency",
@@ -35,7 +36,7 @@ export function fmtTouch(n: number | string | null | undefined): string {
 
 export function fmtDate(d: Date | string): string {
   const date = typeof d === "string" ? new Date(d) : d;
-  return date.toLocaleDateString("en-IN", {
+  return date.toLocaleDateString("en-IN", { timeZone: SHOP_TZ,
     day: "2-digit",
     month: "short",
     year: "numeric",
@@ -43,7 +44,7 @@ export function fmtDate(d: Date | string): string {
 }
 export function fmtDateTime(d: Date | string): string {
   const date = typeof d === "string" ? new Date(d) : d;
-  return date.toLocaleString("en-IN", {
+  return date.toLocaleString("en-IN", { timeZone: SHOP_TZ,
     day: "2-digit",
     month: "short",
     year: "numeric",

@@ -25,7 +25,7 @@ import { computePosition, computeBooking, gramsToLots, type BookType, type BookS
 import { buildBookingWhatsapp } from "@/lib/whatsapp";
 import PartyPicker from "@/components/PartyPicker";
 import type { BookingRow, LotRow } from "@/lib/queries/bookings";
-import { todayKey, dayKey } from "@/lib/dates";
+import { todayKey, dayKey, SHOP_TZ } from "@/lib/dates";
 
 type PartyOpt = { id: string; name: string; phone: string | null };
 
@@ -45,7 +45,7 @@ const nn = (s: string) => parseFloat(s) || 0;
 const f3 = (n: number | null | undefined) => (n == null ? "" : n.toFixed(3));
 const f2 = (n: number | null | undefined) => (n == null ? "" : n.toFixed(2));
 
-const dmy = (d: Date | string) => new Date(d).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "2-digit" });
+const dmy = (d: Date | string) => new Date(d).toLocaleDateString("en-IN", { timeZone: SHOP_TZ, day: "2-digit", month: "short", year: "2-digit" });
 
 type SheetKey = "R SELL" | "R BUY" | "F SELL" | "F BUY" | "UF SELL" | "UF BUY" | "CUSTOMERS" | "- OR +";
 const SHEETS: { key: SheetKey; bookType?: BookType; side?: BookSide; hint: string }[] = [

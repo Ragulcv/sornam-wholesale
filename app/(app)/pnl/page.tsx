@@ -2,6 +2,7 @@ import Link from "next/link";
 import { getPnl } from "@/lib/queries/pnl";
 import { PageHeader, Card } from "@/components/ui";
 import { fmtMoney, fmtWeight } from "@/lib/format";
+import { SHOP_TZ } from "@/lib/dates";
 
 export const dynamic = "force-dynamic";
 
@@ -82,7 +83,7 @@ export default async function PnlPage({
             )}
             {pnl.days.map((d) => (
               <tr key={d.date} className="hover:bg-cream">
-                <td className={cell}>{new Date(d.date).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "2-digit" })}</td>
+                <td className={cell}>{new Date(d.date).toLocaleDateString("en-IN", { timeZone: SHOP_TZ, day: "2-digit", month: "short", year: "2-digit" })}</td>
                 <td className={numCell}>{d.bills}</td>
                 <td className={numCell}>{d.buyWeight ? fmtWeight(d.buyWeight) : ""}</td>
                 <td className={numCell}>{d.buyAmount ? fmtMoney(d.buyAmount) : ""}</td>

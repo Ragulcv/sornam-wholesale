@@ -7,7 +7,7 @@ import { Card, PageHeader } from "@/components/ui";
 import Toolbar from "@/components/Toolbar";
 import { fmtMoney, fmtDate } from "@/lib/format";
 import { rupeesInWords } from "@/lib/words";
-import { todayKey } from "@/lib/dates";
+import { todayKey, SHOP_TZ } from "@/lib/dates";
 import PartyPicker from "@/components/PartyPicker";
 import type { DayTally } from "@/lib/queries/dailyTally";
 
@@ -142,7 +142,7 @@ function DailyTallyTable({ tally }: { tally: DayTally[] }) {
             {tally.length === 0 && <tr><td className={`${cell} py-6 text-center text-mute`} colSpan={12}>Nothing recorded yet.</td></tr>}
             {tally.map((d) => (
               <tr key={d.date} className="odd:bg-[#faf8f3]">
-                <td className={cell}>{new Date(d.date).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "2-digit" })}</td>
+                <td className={cell}>{new Date(d.date).toLocaleDateString("en-IN", { timeZone: SHOP_TZ, day: "2-digit", month: "short", year: "2-digit" })}</td>
                 <td className={n}>{fmtMoney(d.openingCash)}</td>
                 <td className={n}>{d.tradeCashIn ? fmtMoney(d.tradeCashIn) : ""}</td>
                 <td className={n}>{d.tradeCashOut ? fmtMoney(d.tradeCashOut) : ""}</td>

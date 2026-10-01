@@ -4,6 +4,7 @@
 // a backup can never leave the server through this screen.
 import { useCallback, useEffect, useState } from "react";
 import { Card } from "@/components/ui";
+import { SHOP_TZ } from "@/lib/dates";
 
 type Run = {
   day: string; trigger: string; ok: boolean; error: string | null;
@@ -22,7 +23,7 @@ type Status = {
 
 const fmtSize = (b: number) => (b >= 1_048_576 ? `${(b / 1_048_576).toFixed(1)} MB` : `${Math.max(1, Math.round(b / 1024))} KB`);
 const fmtWhen = (iso?: string | null) =>
-  iso ? new Date(iso).toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) : "—";
+  iso ? new Date(iso).toLocaleString("en-IN", { timeZone: SHOP_TZ, day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) : "—";
 const DEST_LABEL: Record<string, string> = { local: "Backup server" };
 
 export default function BackupCard() {

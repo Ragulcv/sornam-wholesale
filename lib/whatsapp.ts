@@ -1,4 +1,5 @@
 import { fmtMoney, fmtWeight, fmtRate, metalLabel } from "./format";
+import { SHOP_TZ } from "./dates";
 
 export function normalisePhone(raw: string): string {
   const d = raw.replace(/\D/g, "");
@@ -116,7 +117,7 @@ export function buildBookingWhatsapp(phone: string, d: BookingMsg): string {
     amount: value > 0 ? fmtMoney(value) : "",
     pending: pending > 0 ? fmtWeight(pending) : "",
     type: typeLabel,
-    date: new Date().toLocaleDateString("en-IN"),
+    date: new Date().toLocaleDateString("en-IN", { timeZone: SHOP_TZ }),
   });
   return url(phone, body);
 }
@@ -142,7 +143,7 @@ export function buildSalesWhatsapp(phone: string, d: SalesMsg): string {
     amount: d.amount && d.amount !== 0 ? fmtMoney(d.amount) : "",
     bill_no: d.billNo != null ? String(d.billNo) : "",
     type: d.trnType === "purchase" ? "Purchase" : "Sale",
-    date: new Date().toLocaleDateString("en-IN"),
+    date: new Date().toLocaleDateString("en-IN", { timeZone: SHOP_TZ }),
   });
   return url(phone, body);
 }
@@ -159,7 +160,7 @@ export function buildDeliveredWhatsapp(phone: string, d: DeliveredMsg): string {
     customer: d.partyName,
     metal: metalLabel(d.metal),
     weight: d.weight > 0 ? fmtWeight(d.weight) : "",
-    date: new Date().toLocaleDateString("en-IN"),
+    date: new Date().toLocaleDateString("en-IN", { timeZone: SHOP_TZ }),
   });
   return url(phone, body);
 }
