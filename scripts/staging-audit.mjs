@@ -29,10 +29,10 @@ const sellW = lines.filter((l) => l.kind === "sale").reduce((a, l) => a + n(l.we
 const sellA = lines.filter((l) => l.kind === "sale").reduce((a, l) => a + n(l.amount), 0);
 const expTx = new Set(txns.filter((t) => t.trnType === "expense").map((t) => t.id));
 const exp = setls.filter((s) => expTx.has(s.transactionId)).reduce((a, s) => a + (s.direction === "paid" ? 1 : -1) * n(s.amount), 0);
-const handGross = sellA - sellW * (buyA / buyW);
+const handGross = sellW > 0 ? sellA - sellW * (buyW > 0 ? buyA / buyW : sellA / sellW) : 0; // empty book = 0
 const full = await getFullPnl();
-ok("avg buy", near(full.physical.totals.avgBuyRate, buyA / buyW), `${buyA / buyW}`);
-ok("avg sell", near(full.physical.totals.avgSellRate, sellA / sellW), `${sellA / sellW}`);
+ok("avg buy", near(full.physical.totals.avgBuyRate, buyW ? buyA / buyW : 0), `${buyW ? buyA / buyW : 0}`);
+ok("avg sell", near(full.physical.totals.avgSellRate, sellW ? sellA / sellW : 0), `${sellW ? sellA / sellW : 0}`);
 ok("physical profit", near(full.totals.physicalGross, handGross), `${handGross}`);
 ok("expenses (paid - received back)", near(full.totals.expenses, exp), `${exp}`);
 
